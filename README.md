@@ -25,7 +25,7 @@ $DSH_HOME/memories/
    Copy-Item -Recurse E:\git\github\dsh-Plugin "$env:USERPROFILE\.dsh\profiles\web\node_modules\@dsh-external\dsh-memory"
    ```
 
-2. Add a loader row to `~/.dsh/profiles/web/cordis.patch.yml`:
+2. Add a loader row to `~/.dsh/profiles/web/cordis.patch.yml` (must be an `insert` entry — a standalone `- id:` row only overrides existing bundle entries and will not mount the plugin):
 
    ```yaml
    - insert:

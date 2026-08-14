@@ -25,7 +25,7 @@ $DSH_HOME/memories/
    Copy-Item -Recurse E:\git\github\dsh-Plugin "$env:USERPROFILE\.dsh\profiles\web\node_modules\@dsh-external\dsh-memory"
    ```
 
-2. 在 `~/.dsh/profiles/web/cordis.patch.yml` 中追加 loader 行：
+2. 在 `~/.dsh/profiles/web/cordis.patch.yml` 中追加 loader 行（必须是 `insert` 条目——独立的 `- id:` 行只用于覆盖已存在的 bundle 条目，不会挂载新插件）：
 
    ```yaml
    - insert:
