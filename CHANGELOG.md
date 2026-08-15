@@ -50,6 +50,9 @@ scope and old raw/summary files continue to work.
   `memory_review` (oldest + near-duplicate groups), `memory_merge`.
 - **Security**: secret detection/redaction for injected summaries, credential
   rejection in `memory_add`, `readOnlyScopes` write presets.
+- **Observability/UI**: scope inventory and error telemetry in `memory_stats`,
+  `memory_history`, and `memory_browse` (self-contained interactive HTML
+  browser over all scopes).
 - **Deployment**: hash-verified `scripts/sync-install.ps1` with dry-run and
   backup; no automatic restart and no memory-data modification.
 

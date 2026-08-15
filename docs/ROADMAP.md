@@ -41,7 +41,7 @@
 - **P2.3 互操作**：已实现 `memory_export`/`memory_import`（Codex 文件级）与独立 MCP 服务器 `bin/dsh-memory-mcp.mjs`（stdio JSON-RPC，9 个记忆工具，作用域参数，零 DSH 运行时依赖，含真实子进程集成测试）。**待办**：Codex 汇总文件（MEMORY.md/memory_summary.md）合并导入。
 - **P2.4 生命周期管理**：已实现 `importance` 0-3 元数据（raw 持久化、搜索加权、add/update 参数）、`memory_add` 归一化重复拒绝（`allowDuplicate` 覆盖）、`memory_review`（最旧优先、`olderThanDays` 过滤、Dice 近重复组建议、永不自动删除）、`memory_merge`（保留 id、最长内容/标签并集/最高重要性，写 update+delete journal）。**待办**：TTL/accessedAt 字段。
 - **P2.6 安全隐私**：已实现 `detectSecrets`（AWS/GitHub/OpenAI/私钥/credential 赋值/高熵 token）与 `redactSecrets`；注入摘要默认脱敏（`redactSecrets=true`），`memory_add` 对明显凭据拒绝并需 `allowSecret:true`；`readOnlyScopes` 可按 scope 阻止 add/update/delete/merge/import/rollback/sync。**待办**：云端同步审批 UI。
-- **P2.5 可观测性（数据层）**：已实现 `memory_stats` 的 scope 库存（每作用域 rawCount/summaryVersion/journalCursor/consolidating）、errorCount/lastError 遥测，以及 `memory_history` 版本浏览。**待办**：设置界面可视化（Web UI 层）。
+- **P2.5 可观测性与 UI**：已实现 `memory_stats` scope 库存 + errorCount/lastError 遥测、`memory_history` 版本浏览、`memory_browse` 自包含交互式 HTML（作用域切换/关键字过滤/摘要/历史）。**待办（可选）**：嵌入 DSH Web 前端的原生设置页。
 - **发布准备**：版本升至 `0.2.0`，新增 `CHANGELOG.md` 与 `examples/mcp-config.json`；`scripts/sync-install.ps1` 已包含全部发布文件并在临时目标验证。实际运行副本同步与 DSH 重启仍待用户确认。
 
 

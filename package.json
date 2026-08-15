@@ -55,6 +55,6 @@
   },
   "license": "MIT",
   "scripts": {
-    "test": "node --test test/store.test.js test/mcp.integration.test.js"
+    "test": "node --test test/store.test.js test/browser.test.js test/mcp.integration.test.js"
   }
 }
