@@ -1,12 +1,9 @@
 # dsh-memory 扩展方向与优化路线
 
-> 基线：`@dsh-external/dsh-memory` v0.1.0，仓库 `E:\git\github\dsh-Plugin` @ `43cea35`。
-> 安装副本 `C:\Users\llhht\.dsh\profiles\web\node_modules\@dsh-external\dsh-memory` 的
-> `lib/index.js`、`lib/types/index.d.ts`、`package.json`、`cordis.patch.yml` 与仓库哈希一致
-> （两份 README 因安装后仓库有文档修订而落后，功能代码无差异）。
->
-> 本文是后续开发的路线图：先列实测现状与代码审计结论，再按 P0 / P1 / P2 给出优化项和
-> 验收标准，最后给出版本里程碑与需要用户确认的决策点。
+> 基线：`@dsh-external/dsh-memory` v0.1.0（历史基线，仓库 `E:\git\github\dsh-Plugin` @ `43cea35`）。
+> 本文是 v0.1.0 时代的规划路线图：第 2 节的 E1–E10「实测现状」与第 3–5 节的
+> P0/P1/P2 各表是当时的审计结论与优化方案，现已全部实现（见「实现状态」与
+> 「完成判定」）。当前版本 0.2.1。
 
 ## 1. 结论摘要
 
@@ -27,7 +24,7 @@
 - **P0-3 合并游标与输入预算**：已实现（`state.rolloutConsumed` 按文件/块推进；`consolidateMaxBytes` 默认 40000 控制输入总量）。
 - **P0-4 写入配额**：已实现（content ≤ 2000 字节，tags ≤ 16 且单个 ≤ 48 字符，add/update 同一校验路径）。
 - **P0-5 packaging**：已实现（移除 `dsh-llm`/`dsh-settings` 的 optional 声明，二者恢复为必需 peer）。
-- **P0-6 测试**：已实现（`npm test`，41 项 node:test 用例全绿：store 单测、HTML 浏览器单测、fake embedding server、真实 MCP 子进程；另有 fake-ctx 工具链路与 fake-LLM 自动摘要/合并端到端验证）。
+- **P0-6 测试**：已实现（`npm test`，49 项 node:test 用例全绿：store 单测、HTML 浏览器单测、Web 设置端点单测、fake embedding server、真实 MCP 子进程；另有 fake-ctx 工具链路与 fake-LLM 自动摘要/合并端到端验证）。
 - **P1-1 搜索升级**：已实现（raw 解析按 mtime+size 缓存；多关键词 `all`/`any` 模式；`tags` 过滤；全词/标签/新近度评分排序；命中窗口 snippet；`memory_search` 输出 `score`）。
 - **P1-3 `memory_stats` 工具**：已实现（摘要大小/版本/超预算、raw 数量与字节、rollout 文件数、journal 事件与游标、上次合并、后台任务状态）。
 - **P1-2 AGENTS.md 重同步**：已实现（state 记录源/种子摘要指纹；`memory_sync` 在源变化且摘要未被手改时重新导入并版本 +1，双方都变化时报告 conflict 不覆盖）。
@@ -41,15 +38,16 @@
 - **P2.3 互操作**：已实现 `memory_export`/`memory_import`（Codex 文件级）与独立 MCP 服务器 `bin/dsh-memory-mcp.mjs`（stdio JSON-RPC，9 个记忆工具，作用域参数，零 DSH 运行时依赖，含真实子进程集成测试）。**决策**：不自动导入 Codex `MEMORY.md`/`memory_summary.md` 语义摘要（避免损坏 LLM 蒸馏结构），raw 文件互操作即边界。
 - **P2.4 生命周期管理**：已实现 `importance` 0-3 元数据、`memory_add` 归一化重复拒绝、`memory_review`（最旧优先/`olderThanDays`/近重复组）、`memory_merge`。**决策**：TTL/accessedAt 暂不实现——插件遵循「永不自动删除」，淘汰由 review+merge 人工完成。
 - **P2.6 安全隐私**：已实现 `detectSecrets`（AWS/GitHub/OpenAI/私钥/credential 赋值/高熵 token）与 `redactSecrets`；注入摘要默认脱敏（`redactSecrets=true`），`memory_add` 对明显凭据拒绝并需 `allowSecret:true`；`readOnlyScopes` 可按 scope 阻止 add/update/delete/merge/import/rollback/sync。**待办**：云端同步审批 UI。
-- **P2.5 可观测性与 UI**：已实现 `memory_stats` scope 库存 + errorCount/lastError 遥测、`memory_history`、`memory_browse` 自包含交互式 HTML。原生 DSH Web 设置页为可选后续（数据接口已具备）。
-- **发布与部署**：版本 `0.2.0`；`CHANGELOG.md`、`examples/mcp-config.json` 就绪；`scripts/sync-install.ps1` 已含全部发布文件并完成实际运行副本同步（含 Backup、SHA-256 全 match）。剩余唯一步骤：重启 DSH 并验证新工具/设置。
+- **P2.5 可观测性与 UI**：已实现 `memory_stats` scope 库存 + errorCount/lastError 遥测、`memory_history`、`memory_browse` 自包含交互式 HTML；DSH Web 设置页已实现——`settings.plugin.item` 卡片（编辑 maxBytes/consolidateEvery/autoSummarize/seedFromAgentsMd）+ 同源端点 `/_dsh/memory/settings`，含端到端 GUI 验证。
+- **发布与部署**：版本 `0.2.1`；`CHANGELOG.md`、`examples/mcp-config.json` 就绪；`scripts/sync-install.ps1` 已含全部发布文件并完成实际运行副本同步（含 Backup、SHA-256 全 match）；DSH 已重启，插件加载（`pluginInventory/list` active）与 Web 设置页卡片均已验证。
 
 
 ## 完成判定（2026-08-15）
 
-- **P0 / P1 全部完成**，**P2.1-P2.6 全部完成**；41 项自动化测试全绿。
-- 剩余唯一阻塞是运行副本部署：需用户确认后执行 `scripts/sync-install.ps1 -Backup` 并重启 DSH（同步脚本已在临时目标验证）。
-- 可选项（不阻塞目标）：DSH Web 原生设置页、接入用户自选神经网络 embedding 端点。
+- **P0 / P1 全部完成**，**P2.1-P2.6 全部完成**；49 项自动化测试全绿。
+- 运行副本部署已完成：`sync-install.ps1 -Backup` 同步、DSH 重启、插件加载与 Web 设置页卡片均验证通过（当前版本 0.2.1）。
+- 可选项（不阻塞目标）：接入用户自选神经网络 embedding 端点（未配置时本地哈希向量已可用）；跨机同步（涉及记忆外发，需单独风险评估与批准）。
+- 第 2 节 E1–E10 与第 3–5 节 P0/P1/P2 各表为 v0.1.0 基线审计，所列问题均已修复，仅保留作历史参考。
 
 ## 2. 实测现状（2026-08-15）
 
@@ -146,25 +144,27 @@
 
 ## 6. 里程碑建议
 
-| 版本 | 内容 | 完成判据 |
+> 下表为 v0.1.0 时规划的里程碑；均已交付于 0.2.0 / 0.2.1（对应关系见「内容」列，具体实现见「实现状态」）。
+
+| 版本 | 内容 | 交付状态 |
 | --- | --- | --- |
-| v1.1 硬化 | P0-1..P0-6 | 修复项有单测覆盖；E1/E2 现场状态被自愈或一次性修复；`npm test` 全绿；真实会话跑通 add→rollout→consolidate |
-| v1.2 质量与观测 | P1-1..P1-7 | 搜索/统计工具可用；长期运行 raw 与队列有界；成本可观测 |
-| v2.0 作用域 | 5.1 | 多工作区记忆互不污染；注入总量受控；升级迁移无损 |
-| v2.1 检索 | 5.2 | 语义检索可用且有关键词兜底；索引重建安全 |
-| v2.2 互操作 | 5.3 | Codex 迁移/导出、`AGENTS.md` 重同步、本地 MCP 形态可用 |
-| v2.3/v2.4 | 5.4/5.5 | 生命周期管理与界面/回滚可用 |
+| v1.1 硬化 | P0-1..P0-6 | ✅ 0.2.0 |
+| v1.2 质量与观测 | P1-1..P1-7 | ✅ 0.2.0 |
+| v2.0 作用域 | 5.1 | ✅ 0.2.0 |
+| v2.1 检索 | 5.2 | ✅ 0.2.0（BM25 + 本地哈希向量；远程 embedding 端点可选） |
+| v2.2 互操作 | 5.3 | ✅ 0.2.0（export/import + 本地 MCP；不自动导入 Codex 语义摘要） |
+| v2.3/v2.4 | 5.4/5.5 | ✅ 0.2.0（生命周期管理）/ 0.2.1（Web 设置页卡片） |
 
-## 7. 需要确认的决策点
+## 7. 需要确认的决策点（落地状态）
 
-1. **P0 完成后是否直接改运行中的安装副本并重启 DSH**（涉及当前会话记忆服务短暂中断）。
-2. **项目作用域的注入比例**：全局/项目 70/30 是否合适，还是可配置 + 默认 80/20。
-3. **embedding 提供商**：是否复用现有 Aliyun MaaS 视觉同款端点，还是纯本地关键词优先。
-4. **MCP 暴露范围**：哪些客户端/项目允许访问 `memory_*` 工具。
-5. **是否启用 git 或其他跨机同步**：涉及记忆内容外发，需要单独风险评估与批准。
+1. ~~P0 完成后直接改运行中的安装副本并重启 DSH~~ —— ✅ 已执行（0.2.1 部署 + 重启 + 验证）。
+2. ~~项目作用域的注入比例~~ —— ✅ 落地为可配置：`maxBytes` 全局预算 + `scopeMaxBytes`（默认 2400）工作区预算。
+3. ~~embedding 提供商~~ —— ✅ 落地为可配置端点 `embeddingBaseURL/apiKey/model`；未配置时本地哈希向量。
+4. ~~MCP 暴露范围~~ —— ✅ 已提供本地 stdio MCP `bin/dsh-memory-mcp.mjs`（9 个工具）；接入范围由各客户端自行配置。
+5. **是否启用 git 或其他跨机同步** —— 仍开放；涉及记忆内容外发，需要单独风险评估与批准（默认不做）。
 
 ## 8. 参考
 
 - `docs/DESIGN.md`：机制对照、关键接口、并发与失败模式。
-- `README.zh.md`：安装与配置。
-- 行号引用基于仓库 `lib/index.js` @ `43cea35`。
+- `README.md` / `README.zh.md`：安装、配置、工具、脚本与测试。
+- 原行号引用基于 `lib/index.js` @ `43cea35`，因 0.2.x 重构了 `index.js` 结构已过时，仅作历史参考。

@@ -58,7 +58,7 @@ v3
 ...
 ```
 
-`summary_history/<version>.<timestamp>.md`：每次合并或回滚前归档当前摘要，按 `keepSummaryVersions` 保留最近版本。
+`summary_history/<version>.<timestamp>.<uuid8>.md`：每次合并或回滚前归档当前摘要，按 `keepSummaryVersions` 保留最近版本。
 
 ## 并发与一致性
 
@@ -85,7 +85,7 @@ v3
 ## 已知限制与扩展方向
 
 - 作用域：`scopedMemory` 开启后按 `session.header.cwd` 派生 `ws-<hash>` 工作区库（`scopes/` 目录）；`scope:'project'` 取会话 cwd 的最近 `.git` 根派生 `project-<hash>`；工具、注入（global + workspace 预算拆分）与每作用域 rollout/合并均按路由作用域工作。根目录是 canonical global 作用域，旧数据无需迁移。
-- 搜索为 BM25 + 全词/标签/新近度加权，字符 bigram 为缺失词提供模糊兜底；`vector:true` 时叠加本地特征哈希向量余弦检索（零依赖，256 维，阈值 0.3）。神经网络 embedding 仍可作未来替换项。
+- 搜索为 BM25 + 全词/标签/新近度加权，字符 bigram 为缺失词提供模糊兜底；`vector:true` 时叠加本地特征哈希向量余弦检索（零依赖，256 维，阈值 0.3）。远程神经网络 embedding 端点已支持：配置 `embeddingBaseURL/apiKey/model` 时走 OpenAI 兼容 `/embeddings` 并与 BM25 结果合并，未配置则回退本地哈希向量。
 - 摘要去重依赖 LLM 合并提示；条目级去重（按内容哈希）留作 v2。
 
 详细的分级优化清单、验收标准与里程碑见 [`ROADMAP.md`](ROADMAP.md)。

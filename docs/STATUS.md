@@ -2,14 +2,14 @@
 
 ## 结论
 
-路线图 P0 / P1 / P2.1-P2.6 已全部实现，41 项自动化测试全绿。仓库 `master` 为
-0.2.0 发布准备版本；唯一未执行的步骤是运行副本同步与 DSH 重启（需用户确认）。
+路线图 P0 / P1 / P2.1-P2.6 已全部实现，49 项自动化测试全绿。仓库 `master` 为
+0.2.1 已发布部署版本：运行副本已同步、DSH 已重启、插件加载与 Web 设置页卡片均已端到端验证。
 
 ## 已验证矩阵
 
 | 层 | 结果 |
 | --- | --- |
-| `npm test`（store 单测 + browser 单测 + fake embedding server + MCP 子进程） | 41/41；核心依赖无关代码行覆盖 93.0%（store 93.07%、browser 92.31%） |
+| `npm test`（store 单测 + browser 单测 + web-settings 单测 + fake embedding server + MCP 子进程） | 49/49；核心依赖无关代码行覆盖 93.0%（store 93.07%、browser 92.31%） |
 | DSH 工具注册 | 14 个（read/add/update/delete/search/review/merge/export/import/stats/browse/history/rollback/sync） |
 | 独立 MCP | 9 个工具，stdio JSON-RPC 子进程集成通过 |
 | 作用域 | global / workspace(cwd) / project(最近 git 根) 工具与自动管线隔离验证通过 |
@@ -19,6 +19,8 @@
 
 
 ## 本轮复验（2026-08-15 19:10）
+
+> 本节为 2026-08-15 19:10 的复验快照（当时测试套件 41 项、DSH 尚未重启）；后续进展见下方「部署状态」——测试已扩展为 49 项，部署重启与 Web 设置页卡片均已验证。
 
 - `npm test`：41/41 通过（388ms），与已验证矩阵一致。
 - DSH 插件链路（fake ctx + 真实 @deepseek-ai 依赖）：settings 注册（namespace=memory, applies=live）；14 个 memory_* 工具全部注册；read/add/update/delete/search/review/merge/export/import/stats/browse/history 全链路通过。
