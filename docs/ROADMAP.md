@@ -42,7 +42,7 @@
 - **P2.4 生命周期管理**：已实现 `importance` 0-3 元数据、`memory_add` 归一化重复拒绝、`memory_review`（最旧优先/`olderThanDays`/近重复组）、`memory_merge`。**决策**：TTL/accessedAt 暂不实现——插件遵循「永不自动删除」，淘汰由 review+merge 人工完成。
 - **P2.6 安全隐私**：已实现 `detectSecrets`（AWS/GitHub/OpenAI/私钥/credential 赋值/高熵 token）与 `redactSecrets`；注入摘要默认脱敏（`redactSecrets=true`），`memory_add` 对明显凭据拒绝并需 `allowSecret:true`；`readOnlyScopes` 可按 scope 阻止 add/update/delete/merge/import/rollback/sync。**待办**：云端同步审批 UI。
 - **P2.5 可观测性与 UI**：已实现 `memory_stats` scope 库存 + errorCount/lastError 遥测、`memory_history`、`memory_browse` 自包含交互式 HTML。原生 DSH Web 设置页为可选后续（数据接口已具备）。
-- **发布准备**：版本升至 `0.2.0`，新增 `CHANGELOG.md` 与 `examples/mcp-config.json`；`scripts/sync-install.ps1` 已包含全部发布文件并在临时目标验证。实际运行副本同步与 DSH 重启仍待用户确认。
+- **发布与部署**：版本 `0.2.0`；`CHANGELOG.md`、`examples/mcp-config.json` 就绪；`scripts/sync-install.ps1` 已含全部发布文件并完成实际运行副本同步（含 Backup、SHA-256 全 match）。剩余唯一步骤：重启 DSH 并验证新工具/设置。
 
 
 ## 完成判定（2026-08-15）

@@ -28,6 +28,7 @@ $ErrorActionPreference = 'Stop'
 $files = @(
   'lib\index.js',
   'lib\store.js',
+  'lib\browser.js',
   'lib\types\index.d.ts',
   'bin\dsh-memory-mcp.mjs',
   'package.json',
