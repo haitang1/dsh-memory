@@ -35,7 +35,9 @@
 
 - 文件同步：已完成（2026-08-15 18:17，`-Backup` 已创建）；10/10 文件 SHA-256 与仓库一致。
 - 重启前校验：已直接用安装副本启动 MCP server（version 0.2.0，9 tools，add/search 全链路通过）。
-- DSH 重启：待执行（需用户确认；重启后按下面第 3 步验证）。
+- DSH 重启：已完成（2026-08-15 19:15，用户确认后执行；新 DSH 进程已拉起）。
+- 重启后验证：`verify-after-restart.ps1` 10/10 SHA-256 match；MCP smoke v0.2.0/9 tools 通过；`pluginInventory/list` 显示 `include:dsh-memory` enabled=true、fiberPhase=active；记忆目录 `.memory.lock`/`state.json` 于 19:15:59 刷新。
+- settings 说明：memory 命名空间已随插件注册；Web `settings.describe` 仅返回 host-apiproxy 白名单命名空间，因此不列出 memory（属 DSH Web 原生设置页可选后续），不影响插件运行。
 
 ## 部署命令记录
 
@@ -46,7 +48,7 @@ powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\sync-i
 # 2. 同步（自动备份当前安装副本，不碰记忆数据，不自动重启）
 powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\sync-install.ps1 -Backup
 
-# 3. 重启 DeepSeek Harness（会自动停掉 @deepseek-ai/dsh 相关 node 进程并重新拉起；请先 -WhatIf 预览）：
+# 3. 重启 DeepSeek Harness（已于 2026-08-15 19:15 执行；脚本会自动停掉 @deepseek-ai/dsh 相关 node 进程并重新拉起）：
 powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\restart-dsh.ps1 -WhatIf
 powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\restart-dsh.ps1
 #    或手动重启后仅验证（自动校验文件 + 安装副本 MCP 冒烟）：
