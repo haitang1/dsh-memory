@@ -80,7 +80,7 @@ v3
 
 ## 已知限制与扩展方向
 
-- 作用域：`scopedMemory` 开启后按 `session.header.cwd` 派生 `ws-<hash>` 工作区库（`scopes/` 目录），工具 `scope` 参数与注入按 global + workspace 预算拆分；每作用域自动摘要/合并为后续项。
+- 作用域：`scopedMemory` 开启后按 `session.header.cwd` 派生 `ws-<hash>` 工作区库（`scopes/` 目录），工具 `scope` 参数、注入（global + workspace 预算拆分）与每作用域 rollout/合并都按会话工作区路由。
 - 搜索为关键词子串匹配；向量检索（embeddings）留作 v2；
 - 摘要去重依赖 LLM 合并提示；条目级去重（按内容哈希）留作 v2。
 
