@@ -7,6 +7,7 @@ import {
   MemoryStore,
   buildConsolidationInput,
   finishError,
+  hashText,
   byteLength,
   ensureVersionLine,
   journalToNetChanges,
@@ -263,4 +264,19 @@ test('summary history archives, prunes, lists, and restores by version', async (
   assert.equal(latest.version, 2)
   assert.equal(latest.text.includes('- two'), true)
   assert.equal((await store.latestSummaryHistory(1)), null)
+})
+test('hashText is deterministic', () => {
+  assert.equal(hashText('abc'), hashText('abc'))
+  assert.notEqual(hashText('abc'), hashText('abd'))
+})
+
+test('writeSeedSummary overwrites with the requested version and budget', async (t) => {
+  const store = await tempStore(t)
+  await store.seedSummary('old body', 512)
+  const written = await store.writeSeedSummary('new body '.repeat(200), 512, 3)
+  const text = await store.readSummary()
+  assert.equal(written.bytes <= 512, true)
+  assert.equal(summaryVersion(text), 3)
+  assert.equal(text.includes('new body'), true)
+  assert.equal(text.includes('old body'), false)
 })
