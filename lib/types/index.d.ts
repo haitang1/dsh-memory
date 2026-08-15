@@ -38,6 +38,8 @@ export interface MemoryConfig {
   scopedMemory?: boolean
   /** Injected byte budget for the workspace-scoped summary when scopedMemory is enabled (default 2400). */
   scopeMaxBytes?: number
+  /** Redact detected credential patterns from injected summaries (default true). */
+  redactSecrets?: boolean
   /** Seed the first summary from `$DSH_HOME/AGENTS.md` (default true). */
   seedFromAgentsMd?: boolean
 }

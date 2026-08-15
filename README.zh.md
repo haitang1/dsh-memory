@@ -59,6 +59,7 @@ $DSH_HOME/memories/
 | `llmRetries` | `1` | LLM 瞬时失败后的重试次数。 |
 | `maxActiveSummaries` | `4` | 同时进行的轮次摘要上限，超出后丢弃新任务。 |
 | `scopedMemory` | `false` | 开启按工作区隔离的记忆作用域。 |
+| `redactSecrets` | `true` | 注入前对疑似凭据文本做脱敏。 |
 | `scopeMaxBytes` | `2400` | scopedMemory 开启时工作区摘要的注入字节预算。 |
 | `seedFromAgentsMd` | `true` | 是否用 `$DSH_HOME/AGENTS.md` 导入初始摘要。 |
 
@@ -67,7 +68,7 @@ $DSH_HOME/memories/
 | 工具 | 用途 |
 | --- | --- |
 | `memory_read { scope? }` | 读取全局、工作区或项目（最近 git 根）记忆摘要。 |
-| `memory_add { content, tags?, scope?, importance?, allowDuplicate? }` | 在 `global`、`workspace` 或 `project` 作用域存储事实；`importance` 0-3 影响排序，默认拒绝空白/大小写归一后的重复事实。 |
+| `memory_add { content, tags?, scope?, importance?, allowDuplicate?, allowSecret? }` | 存储事实；明显凭据默认拒绝（除非 `allowSecret:true`），`importance` 0-3 影响排序，默认拒绝重复事实。 |
 | `memory_update { id, content?, tags?, importance?, scope? }` | 在指定作用域替换条目的内容/标签/重要性。 |
 | `memory_delete { id, scope? }` | 从指定作用域删除条目。 |
 | `memory_search { query, tags?, mode?, fuzzy?, limit?, scope? }` | 在指定作用域（`global`/`workspace`/`project`）做 BM25 多关键词相关性搜索，支持标签过滤与零依赖拼写/CJK 模糊兜底。 |

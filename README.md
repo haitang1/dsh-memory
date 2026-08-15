@@ -59,6 +59,7 @@ $DSH_HOME/memories/
 | `llmRetries` | `1` | Retries after a transient LLM failure. |
 | `maxActiveSummaries` | `4` | Maximum concurrent turn summarizations before new jobs are dropped. |
 | `scopedMemory` | `false` | Enable per-workspace memory scopes. |
+| `redactSecrets` | `true` | Redact credential-looking text from injected summaries. |
 | `scopeMaxBytes` | `2400` | Injected byte budget for the workspace summary when scopedMemory is enabled. |
 | `seedFromAgentsMd` | `true` | Seed the first summary from `$DSH_HOME/AGENTS.md`. |
 
@@ -67,7 +68,7 @@ $DSH_HOME/memories/
 | Tool | Purpose |
 | --- | --- |
 | `memory_read { scope? }` | Read the global, workspace, or project (nearest git root) memory summary. |
-| `memory_add { content, tags?, scope?, importance?, allowDuplicate? }` | Store one durable fact in `global`, `workspace`, or `project` scope; `importance` 0-3 affects ranking, whitespace/case duplicates are rejected by default. |
+| `memory_add { content, tags?, scope?, importance?, allowDuplicate?, allowSecret? }` | Store one durable fact; obvious credentials are rejected unless `allowSecret:true`, `importance` 0-3 affects ranking, duplicates rejected by default. |
 | `memory_update { id, content?, tags?, importance?, scope? }` | Replace an entry's content/tags/importance in the selected scope. |
 | `memory_delete { id, scope? }` | Remove an entry from the selected scope. |
 | `memory_search { query, tags?, mode?, fuzzy?, limit?, scope? }` | BM25-ranked multi-keyword search in the selected scope (`global`/`workspace`/`project`) with optional tag filtering and zero-dependency typo/CJK fuzzy fallback. |

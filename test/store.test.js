@@ -10,6 +10,8 @@ import {
   buildConsolidationInput,
   findNearDuplicateGroups,
   contentFingerprint,
+  detectSecrets,
+  redactSecrets,
   finishError,
   hashText,
   byteLength,
@@ -427,4 +429,19 @@ test('mergeRawEntries keeps longest content, unions tags, max importance', async
   assert.equal(result.kept.importance, 3)
   assert.equal(result.removed.length, 1)
   assert.equal((await store.readRawEntries()).length, 1)
+})
+test('detectSecrets finds known credential shapes and high-entropy tokens', () => {
+  const findings = detectSecrets('token=sk-abcdefghijklmnopqrstuvwxyz123456 and ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')
+  const types = findings.map((item) => item.type)
+  assert.equal(types.includes('openai-key'), true)
+  assert.equal(types.includes('github-token'), true)
+  assert.equal(detectSecrets('-----BEGIN PRIVATE KEY-----').some((item) => item.type === 'private-key'), true)
+  assert.equal(detectSecrets('kQ7vP2mX9fR4tN8wZ3bC6dL5sA1').some((item) => item.type === 'high-entropy-token'), true)
+})
+
+test('redactSecrets replaces findings with typed markers', () => {
+  const input = 'use sk-abcdefghijklmnopqrstuvwxyz123456 carefully'
+  const output = redactSecrets(input)
+  assert.equal(output.includes('sk-abcdefghijklmnopqrstuvwxyz123456'), false)
+  assert.equal(output.includes('[REDACTED:openai-key]'), true)
 })

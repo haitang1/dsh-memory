@@ -69,6 +69,7 @@ v3
 - 写入新摘要前把当前版本归档到 `summary_history/`，`memory_rollback` 可恢复任意保留版本。
 - 活动 raw 文件超过 `rawArchiveMaxBytes` 时，最旧条目写入 `archive/raw-YYYY-MM.md`；搜索默认合并活动与归档条目。
 - 注入读取失败（文件不存在）返回空串，插件不影响会话正常组装。
+- 安全：注入前对已知凭据形态与高熵 token 做 `redactSecrets`（默认开启）；`memory_add` 对明显凭据拒绝写入，除非显式 `allowSecret:true`。
 
 ## 失败模式
 
