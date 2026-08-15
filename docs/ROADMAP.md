@@ -42,7 +42,7 @@
 - **P2.4 生命周期管理**：已实现 `importance` 0-3 元数据（raw 持久化、搜索加权、add/update 参数）、`memory_add` 归一化重复拒绝（`allowDuplicate` 覆盖）、`memory_review`（最旧优先、`olderThanDays` 过滤、Dice 近重复组建议、永不自动删除）、`memory_merge`（保留 id、最长内容/标签并集/最高重要性，写 update+delete journal）。**待办**：TTL/accessedAt 字段。
 - **P2.6 安全隐私**：已实现 `detectSecrets`（AWS/GitHub/OpenAI/私钥/credential 赋值/高熵 token）与 `redactSecrets`；注入摘要默认脱敏（`redactSecrets=true`），`memory_add` 对明显凭据拒绝并需 `allowSecret:true`；`readOnlyScopes` 可按 scope 阻止 add/update/delete/merge/import/rollback/sync。**待办**：云端同步审批 UI。
 - **P2.5 可观测性（数据层）**：已实现 `memory_stats` 的 scope 库存（每作用域 rawCount/summaryVersion/journalCursor/consolidating）、errorCount/lastError 遥测，以及 `memory_history` 版本浏览。**待办**：设置界面可视化（Web UI 层）。
-- **待办**：运行副本部署与 DSH 重启验证（需用户确认）。
+- **部署准备**：新增 `scripts/sync-install.ps1`（DryRun/Backup、仅复制 lib/bin/package/README、SHA-256 校验、不碰记忆数据、不自动重启），已在临时目标验证同步/篡改修复/备份。实际运行副本同步与 DSH 重启仍待用户确认。
 
 
 ## 2. 实测现状（2026-08-15）

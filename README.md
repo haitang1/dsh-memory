@@ -88,6 +88,17 @@ $DSH_HOME/memories/
 
 `bin/dsh-memory-mcp.mjs` exposes the same Markdown memory store over stdio JSON-RPC (MCP) with no DeepSeek Harness runtime dependency. Environment: `DSH_MEMORY_DIR` (default `~/.dsh/memories`), `DSH_MEMORY_REDACT=1` (default). Scope arguments: `global` (default), `workspace`/`project` with a `cwd` argument.
 
+
+
+## Deploy / update
+
+`scripts/sync-install.ps1` copies runtime files into a DSH profile external-plugin directory and verifies SHA-256 hashes. It never touches memory data and does not restart DSH; restart is required after sync. Usage:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -DryRun
+powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
+```
+
 ## Scope
 
 v1 memory is global and shared by all sessions (like Codex). Project-scoped memory is a planned extension.

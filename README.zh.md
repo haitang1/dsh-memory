@@ -88,6 +88,17 @@ $DSH_HOME/memories/
 
 `bin/dsh-memory-mcp.mjs` 通过 stdio JSON-RPC（MCP）暴露同一套 Markdown 记忆库，不依赖 DeepSeek Harness 运行时。环境变量：`DSH_MEMORY_DIR`（默认 `~/.dsh/memories`）、`DSH_MEMORY_REDACT=1`（默认）。作用域参数：`global`（默认）、`workspace`/`project`（需 `cwd`）。
 
+
+
+## 部署 / 更新
+
+`scripts/sync-install.ps1` 把运行时文件复制到 DSH profile 外部插件目录并校验 SHA-256；不触碰记忆数据、不重启 DSH，同步后需重启。用法：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -DryRun
+powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
+```
+
 ## 范围
 
 v1 记忆为全局共享（所有会话可见，与 Codex 一致）；项目级作用域记忆留作后续扩展。
