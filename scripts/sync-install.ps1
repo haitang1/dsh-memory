@@ -32,7 +32,9 @@ $files = @(
   'bin\dsh-memory-mcp.mjs',
   'package.json',
   'README.md',
-  'README.zh.md'
+  'README.zh.md',
+  'CHANGELOG.md',
+  'examples\mcp-config.json'
 )
 
 Write-Host "source: $SourceDir"

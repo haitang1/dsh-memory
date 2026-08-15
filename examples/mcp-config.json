@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "dsh-memory": {
+      "command": "node",
+      "args": ["E:/git/github/dsh-Plugin/bin/dsh-memory-mcp.mjs"],
+      "env": {
+        "DSH_MEMORY_DIR": "C:/Users/<you>/.dsh/memories",
+        "DSH_MEMORY_REDACT": "1"
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "@dsh-external/dsh-memory",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Codex-like persistent memory for DeepSeek Harness: auto-injected memory summary, raw memory tools, and per-session rollout summaries distilled into a bounded global memory file.",
   "keywords": [
     "deepseek",
@@ -34,7 +34,9 @@
   "files": [
     "lib",
     "bin",
+    "examples",
     "cordis.patch.yml",
+    "CHANGELOG.md",
     "README.md",
     "README.zh.md",
     "LICENSE"

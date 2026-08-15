@@ -333,7 +333,7 @@ rl.on('line', (line) => {
   Promise.resolve().then(async () => {
     switch (method) {
       case 'initialize':
-        return respond({ protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'dsh-memory', version: '0.1.0' } })
+        return respond({ protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'dsh-memory', version: '0.2.0' } })
       case 'ping':
         return respond({})
       case 'tools/list':
