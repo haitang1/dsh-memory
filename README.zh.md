@@ -82,6 +82,12 @@ $DSH_HOME/memories/
 | `memory_review { scope?, limit?, olderThanDays? }` | 列出最旧条目与近重复组供复核；绝不自动删除。 |
 | `memory_merge { ids, keepId?, scope? }` | 合并活动条目：保留最长内容、标签并集、最高重要性。 |
 
+
+
+## 独立 MCP 服务器
+
+`bin/dsh-memory-mcp.mjs` 通过 stdio JSON-RPC（MCP）暴露同一套 Markdown 记忆库，不依赖 DeepSeek Harness 运行时。环境变量：`DSH_MEMORY_DIR`（默认 `~/.dsh/memories`）、`DSH_MEMORY_REDACT=1`（默认）。作用域参数：`global`（默认）、`workspace`/`project`（需 `cwd`）。
+
 ## 范围
 
 v1 记忆为全局共享（所有会话可见，与 Codex 一致）；项目级作用域记忆留作后续扩展。

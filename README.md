@@ -82,6 +82,12 @@ $DSH_HOME/memories/
 | `memory_review { scope?, limit?, olderThanDays? }` | List oldest entries and near-duplicate groups for review; never deletes automatically. |
 | `memory_merge { ids, keepId?, scope? }` | Merge active entries: longest content, union tags, max importance survive. |
 
+
+
+## Standalone MCP server
+
+`bin/dsh-memory-mcp.mjs` exposes the same Markdown memory store over stdio JSON-RPC (MCP) with no DeepSeek Harness runtime dependency. Environment: `DSH_MEMORY_DIR` (default `~/.dsh/memories`), `DSH_MEMORY_REDACT=1` (default). Scope arguments: `global` (default), `workspace`/`project` with a `cwd` argument.
+
 ## Scope
 
 v1 memory is global and shared by all sessions (like Codex). Project-scoped memory is a planned extension.

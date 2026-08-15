@@ -20,6 +20,9 @@
   },
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
+  "bin": {
+    "dsh-memory-mcp": "./bin/dsh-memory-mcp.mjs"
+  },
   "exports": {
     ".": {
       "types": "./lib/types/index.d.ts",
@@ -30,6 +33,7 @@
   },
   "files": [
     "lib",
+    "bin",
     "cordis.patch.yml",
     "README.md",
     "README.zh.md",
@@ -49,6 +53,6 @@
   },
   "license": "MIT",
   "scripts": {
-    "test": "node --test test/store.test.js"
+    "test": "node --test test/store.test.js test/mcp.integration.test.js"
   }
 }
