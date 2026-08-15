@@ -70,7 +70,7 @@ $DSH_HOME/memories/
 | `memory_add { content, tags?, scope? }` | Store one durable fact in `global`, `workspace`, or `project` scope; returns the entry id. |
 | `memory_update { id, content?, tags?, scope? }` | Replace an entry's content/tags in the selected scope. |
 | `memory_delete { id, scope? }` | Remove an entry from the selected scope. |
-| `memory_search { query, tags?, mode?, limit?, scope? }` | Ranked multi-keyword search in the selected scope (`global`/`workspace`/`project`) with optional tag filtering. |
+| `memory_search { query, tags?, mode?, fuzzy?, limit?, scope? }` | BM25-ranked multi-keyword search in the selected scope (`global`/`workspace`/`project`) with optional tag filtering and zero-dependency typo/CJK fuzzy fallback. |
 | `memory_stats {}` | Report memory store health (sizes, versions, cursors, background work). |
 | `memory_rollback { version }` | Restore a previously retained summary version. |
 | `memory_sync {}` | Re-import AGENTS.md when it changed; reports a conflict instead of overwriting manual summary edits. |

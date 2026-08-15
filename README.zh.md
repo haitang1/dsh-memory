@@ -70,7 +70,7 @@ $DSH_HOME/memories/
 | `memory_add { content, tags?, scope? }` | 在 `global`、`workspace` 或 `project` 作用域存储事实，返回条目 id。 |
 | `memory_update { id, content?, tags?, scope? }` | 在指定作用域替换条目的内容/标签。 |
 | `memory_delete { id, scope? }` | 从指定作用域删除条目。 |
-| `memory_search { query, tags?, mode?, limit?, scope? }` | 在指定作用域（`global`/`workspace`/`project`）做多关键词相关性搜索并支持标签过滤。 |
+| `memory_search { query, tags?, mode?, fuzzy?, limit?, scope? }` | 在指定作用域（`global`/`workspace`/`project`）做 BM25 多关键词相关性搜索，支持标签过滤与零依赖拼写/CJK 模糊兜底。 |
 | `memory_stats {}` | 报告记忆库健康度（大小、版本、游标、后台任务）。 |
 | `memory_rollback { version }` | 回滚到之前保留的摘要版本。 |
 | `memory_sync {}` | AGENTS.md 变化时重新导入；若摘要也被手改则报告冲突而不覆盖。 |

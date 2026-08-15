@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   MemoryStore,
+  bigramCoverage,
   buildConsolidationInput,
   finishError,
   hashText,
@@ -361,4 +362,20 @@ test('findGitRoot walks up to a .git directory or worktree file', async (t) => {
   await mkdir(join(base, 'repo', 'nested', 'deeper'), { recursive: true })
   await mkdir(join(base, 'repo', '.git'), { recursive: true })
   assert.equal((await findGitRoot(join(base, 'repo', 'nested', 'deeper'))).toLowerCase(), join(base, 'repo').toLowerCase())
+})
+test('bigramCoverage tolerates typos in fuzzy matching', () => {
+  assert.equal(bigramCoverage('projct', 'project deadline') >= 0.55, true)
+  assert.equal(bigramCoverage('zzzz', 'project deadline') < 0.55, true)
+})
+
+test('searchEntries fuzzy mode fills missing terms, exact mode does not', () => {
+  const now = Date.parse('2026-08-15T12:00:00Z')
+  const entries = [
+    { ts: '2026-08-15 10:00', id: 'a', tags: [], content: 'project deadline and scope' }
+  ]
+  const fuzzy = searchEntries(entries, 'projct scope', { mode: 'all', now, fuzzy: true })
+  assert.equal(fuzzy.length, 1)
+  assert.equal(fuzzy[0].entry.id, 'a')
+  const exact = searchEntries(entries, 'projct scope', { mode: 'all', now, fuzzy: false })
+  assert.equal(exact.length, 0)
 })

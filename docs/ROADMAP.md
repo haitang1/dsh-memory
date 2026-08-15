@@ -37,7 +37,8 @@
 - **P1-6 摘要输出安全与回滚**：已实现（合并输出严格校验 `# DSH memory` + 独立 `vN` + `##` 节，畸形输出拒绝写入并保留旧版；行边界 + 代码围栏感知截断；每次合并前归档 `summary_history/`，`keepSummaryVersions` 默认 20；新增 `memory_rollback {version}` 工具）。
 - **额外修复**：`BlockAssembler.finish` 总是返回 `{kind:'stop'}`，原 `if (assembler.finish) throw` 会让每次自动摘要必然失败；已改为按 `dsh-session-title-llm` 模式解析 finish，并把摘要任务从 `store.chain` 中解耦（原写法存在自锁）。
 - **P2.1 项目级作用域**：已完成——作用域键/目录、`scopedMemory`+`scopeMaxBytes` 配置、工具 `scope` 参数（`global`/`workspace` 默认/`project`=最近 git 根）、注入 global+workspace 预算拆分、每作用域 rollout 与合并（独立 state/journal/rollout 游标与版本历史）。**迁移决策**：根目录即 canonical global 作用域，不迁移到 `scopes/global`（向后兼容，旧数据继续有效）。
-- **待办**：运行副本部署与 DSH 重启验证（需用户确认）；P2.2-P2.6 尚未开始。
+- **P2.2 检索增强（零依赖部分）**：已实现 BM25（idf/tf 归一）+ 全词/标签/新近度 + 字符 bigram 模糊兜底（`fuzzy` 默认开启，拼写容错与 CJK 子串覆盖）。**待办**：可选神经网络 embedding provider + 向量索引（需确认提供商）。
+- **待办**：运行副本部署与 DSH 重启验证（需用户确认）；P2.3-P2.6 尚未开始。
 
 
 ## 2. 实测现状（2026-08-15）
