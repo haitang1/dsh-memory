@@ -16,6 +16,8 @@ export interface MemoryConfig {
   consolidateMaxBytes?: number
   /** Number of previous summary versions retained for rollback (default 20, 0 disables history). */
   keepSummaryVersions?: number
+  /** Byte threshold above which oldest raw entries are archived (default 200000). */
+  rawArchiveMaxBytes?: number
   /** Distill turns into rollout summaries (default true). */
   autoSummarize?: boolean
   /** Provider used for summarization; defaults to the selected agent model. */

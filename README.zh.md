@@ -11,6 +11,7 @@ $DSH_HOME/memories/
 ├── rollout_summaries/<sid>.md  每会话的轮次摘要（自动）
 ├── journal.jsonl               变更日志（合并游标消费）
 ├── summary_history/<v>.<ts>.md 保留的摘要历史版本（可回滚）
+├── archive/raw-YYYY-MM.md      超出字节预算后被归档的旧 raw 条目
 └── state.json                  版本 + journal/rollout 游标进度
 ```
 
@@ -48,6 +49,7 @@ $DSH_HOME/memories/
 | `maxBytes` | `8000` | 注入摘要的字节上限。 |
 | `consolidateMaxBytes` | `40000` | 合并模型输入的总字节预算。 |
 | `keepSummaryVersions` | `20` | 保留的摘要历史版本数，供 `memory_rollback` 回滚（0 = 不保留）。 |
+| `rawArchiveMaxBytes` | `200000` | 活动 raw 文件字节预算；超出后最旧条目移入 `archive/`。 |
 | `autoSummarize` | `true` | 是否把结束的轮次蒸馏成 rollout 摘要。 |
 | `summarizeProvider` / `summarizeModel` | 当前选择的模型 | 摘要使用的模型。 |
 | `consolidateEvery` | `3` | 累计多少份 rollout 摘要后重新合并全局摘要。 |

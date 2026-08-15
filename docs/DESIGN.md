@@ -67,6 +67,7 @@ v3
 - 合并只消费「新 rollout 块 + 游标之后的 journal 事件」，游标在 summary 写入成功后推进，重复消费与半截消费都有边界；
 - 合并输出先严格校验（`# DSH memory`、独立 `vN`、至少一个 `##` 节），畸形输出拒绝写入并保留旧版；截断按完整行且不留下未闭合代码围栏；
 - 写入新摘要前把当前版本归档到 `summary_history/`，`memory_rollback` 可恢复任意保留版本。
+- 活动 raw 文件超过 `rawArchiveMaxBytes` 时，最旧条目写入 `archive/raw-YYYY-MM.md`；搜索默认合并活动与归档条目。
 - 注入读取失败（文件不存在）返回空串，插件不影响会话正常组装。
 
 ## 失败模式

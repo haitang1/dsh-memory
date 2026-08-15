@@ -280,3 +280,21 @@ test('writeSeedSummary overwrites with the requested version and budget', async 
   assert.equal(text.includes('new body'), true)
   assert.equal(text.includes('old body'), false)
 })
+test('raw entries archive beyond the byte threshold and stay searchable', async (t) => {
+  const store = await tempStore(t)
+  store.rawArchiveMaxBytes = 1024
+  for (let index = 0; index < 10; index += 1) {
+    await store.appendRawEntry({ content: `fact number ${index} `.repeat(8), tags: index % 2 === 0 ? ['archived'] : [] })
+  }
+  const active = await store.readRawEntries()
+  const archivedStats = await store.archivedRawStats()
+  assert.equal(active.length < 10, true)
+  assert.equal(archivedStats.count > 0, true)
+  assert.equal((await store.fileBytes('raw_memories.md')) <= 1024, true)
+  const archivedEntries = await store.readArchivedEntries()
+  assert.equal(archivedEntries.some((entry) => entry.content.includes('fact number 0')), true)
+  const fromArchive = await store.searchRaw('fact number 0', { mode: 'all' })
+  assert.equal(fromArchive.length, 1)
+  const activeOnly = await store.searchRaw('fact number 0', { mode: 'all', includeArchive: false })
+  assert.equal(activeOnly.length, 0)
+})

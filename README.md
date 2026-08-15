@@ -11,6 +11,7 @@ $DSH_HOME/memories/
 ├── rollout_summaries/<sid>.md  per-session turn summaries (auto)
 ├── journal.jsonl               mutation journal consumed by consolidation
 ├── summary_history/<v>.<ts>.md previous summary versions kept for rollback
+├── archive/raw-YYYY-MM.md      oldest raw entries archived past the byte budget
 └── state.json                  version + journal/rollout cursor bookkeeping
 ```
 
@@ -48,6 +49,7 @@ $DSH_HOME/memories/
 | `maxBytes` | `8000` | Byte budget of the injected summary. |
 | `consolidateMaxBytes` | `40000` | Byte budget of the consolidation input sent to the merge model. |
 | `keepSummaryVersions` | `20` | Previous summary versions retained for `memory_rollback` (0 disables history). |
+| `rawArchiveMaxBytes` | `200000` | Active raw file byte budget; oldest entries move to `archive/` beyond it. |
 | `autoSummarize` | `true` | Distill finished turns into rollout summaries. |
 | `summarizeProvider` / `summarizeModel` | selected agent model | Model used for summarization. |
 | `consolidateEvery` | `3` | Rollout summaries written before re-consolidating the global summary. |
