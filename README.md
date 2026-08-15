@@ -13,15 +13,20 @@ $DSH_HOME/memories/
 ├── summary_history/<v>.<ts>.md previous summary versions kept for rollback
 ├── archive/raw-YYYY-MM.md      oldest raw entries archived past the byte budget
 ├── scopes/ws-<hash>/...         per-workspace stores (when scopedMemory is enabled)
+├── scopes/project-<hash>/...    per-git-root project stores (when scopedMemory is enabled)
 └── state.json                  version + journal/rollout cursor bookkeeping
 ```
 
 - **Injection** — `systemPrompt.context` re-reads `memory_summary.md` at every prompt assembly, so a `memory_add` call surfaces in the very next model step.
 - **Tools** — `memory_read`, `memory_add`, `memory_update`, `memory_delete`, `memory_search`, `memory_review`, `memory_merge`, `memory_export`, `memory_import`, `memory_stats`, `memory_browse`, `memory_history`, `memory_rollback`, `memory_sync` (see below).
-- **Auto memory** — on each finished turn of a root agent, the new conversation text is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace scope. All LLM work is queued, timed out, and never blocks a turn.
+- **Auto memory** — on each finished turn of a root agent, the new conversation text is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
+Current release: **0.2.1** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+
 ## Install
+
+The one-command path is `scripts/sync-install.ps1` (see [Deploy / update](#deploy--update)); the manual path is below. Either way, restart DeepSeek Harness afterwards.
 
 1. Put the package under the profile's external plugins:
 
@@ -65,6 +70,8 @@ $DSH_HOME/memories/
 | `scopeMaxBytes` | `2400` | Injected byte budget for the workspace summary when scopedMemory is enabled. |
 | `seedFromAgentsMd` | `true` | Seed the first summary from `$DSH_HOME/AGENTS.md`. |
 
+The Web settings card (see below) edits `maxBytes`, `consolidateEvery`, `autoSummarize`, and `seedFromAgentsMd` live; all other keys are configured through the loader row or the `memory:` section of `settings.yaml`.
+
 ## Tools
 
 | Tool | Purpose |
@@ -90,6 +97,8 @@ $DSH_HOME/memories/
 
 `bin/dsh-memory-mcp.mjs` exposes the same Markdown memory store over stdio JSON-RPC (MCP) with no DeepSeek Harness runtime dependency. Environment: `DSH_MEMORY_DIR` (default `~/.dsh/memories`), `DSH_MEMORY_REDACT=1` (default). Scope arguments: `global` (default), `workspace`/`project` with a `cwd` argument.
 
+It serves 9 tools with the same store semantics as the DSH tools: `memory_read`, `memory_add`, `memory_update`, `memory_delete`, `memory_search`, `memory_stats`, `memory_history`, `memory_merge`, `memory_review`. An example client config lives in [`examples/mcp-config.json`](examples/mcp-config.json).
+
 
 
 ## Deploy / update
@@ -100,6 +109,16 @@ $DSH_HOME/memories/
 powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -DryRun
 powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 ```
+
+### Scripts
+
+| Script | Purpose |
+| --- | --- |
+| `scripts/sync-install.ps1` | Copy runtime + metadata files into the profile external-plugin directory and verify SHA-256 (`-DryRun` preview, `-Backup` snapshot before writing). |
+| `scripts/verify-after-restart.ps1` | Post-restart verification: file hashes, the Web settings allowlist, and an installed-copy MCP smoke test (`-SkipMcpSmoke`, `-SkipWebSettingsCheck`). |
+| `scripts/restart-dsh.ps1` | Stop and relaunch the DSH web process, then run the verification (`-WhatIf` first; closes the running session). |
+| `scripts/patch-web-settings.ps1` | Optional: add `memory` to the `dsh-host-apiproxy` Web settings allowlist (idempotent, backup + syntax check + rollback). |
+| `scripts/mcp-smoke.mjs` | Standalone MCP server smoke test (version, tool count, add/search round-trip). |
 
 ## Web settings page
 
@@ -112,11 +131,29 @@ powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1 -WhatIf
 powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1
 ```
 
-The patch is idempotent, backs up the target, and re-checks syntax. `scripts/verify-after-restart.ps1` checks the deployed plugin files, the client bundle, and this allowlist.
+The patch is idempotent, backs up the target, and re-checks syntax. `scripts/verify-after-restart.ps1` checks the deployed plugin files, the client bundle, and this allowlist. The card was verified end-to-end on this deployment (2026-08-15): edit → save → "Settings saved and applied." → the `memory:` section persisted in `settings.yaml` (changes apply live).
 
 ## Scope
 
-v1 memory is global and shared by all sessions (like Codex). Project-scoped memory is a planned extension.
+Memory is stored in three scopes:
+
+- `global` — shared by all sessions (the Codex-style default);
+- `workspace` — per working directory (`ws-<hash>`), active when `scopedMemory: true`;
+- `project` — per nearest git root (`project-<hash>`), active when `scopedMemory: true`.
+
+Tools accept a `scope` argument (`global` | `workspace` | `project`); the project scope resolves the session's `cwd`. Write access can be restricted per scope via `readOnlyScopes`.
+
+## Development & testing
+
+`npm test` runs 49 tests (node:test):
+
+- `test/store.test.js` — store semantics, journal, history, archiving, scopes;
+- `test/browser.test.js` — the interactive HTML browser snapshot rendering;
+- `test/web-settings.test.js` — the settings endpoint lifecycle (GET/POST, 403/409, body limits) plus a VM-sandbox load of the client bundle asserting the `settings.plugin.item` card registration;
+- `test/embedding.integration.test.js` — fake `/embeddings` server + local hashed vectors;
+- `test/mcp.integration.test.js` — real MCP child-process round-trips.
+
+The architecture and mechanism notes live in [`docs/DESIGN.md`](docs/DESIGN.md); deployment status in [`docs/STATUS.md`](docs/STATUS.md).
 
 ## License
 

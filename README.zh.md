@@ -13,15 +13,20 @@ $DSH_HOME/memories/
 ├── summary_history/<v>.<ts>.md 保留的摘要历史版本（可回滚）
 ├── archive/raw-YYYY-MM.md      超出字节预算后被归档的旧 raw 条目
 ├── scopes/ws-<hash>/...         按工作区隔离的记忆库（开启 scopedMemory 后）
+├── scopes/project-<hash>/...    按 git 根隔离的项目记忆库（开启 scopedMemory 后）
 └── state.json                  版本 + journal/rollout 游标进度
 ```
 
 - **注入** —— 通过 `systemPrompt.context` 在每次提示词组装时重读 `memory_summary.md`，因此 `memory_add` 写入后下一步立即生效。
 - **工具** —— `memory_read` / `memory_add` / `memory_update` / `memory_delete` / `memory_search` / `memory_review` / `memory_merge` / `memory_export` / `memory_import` / `memory_stats` / `memory_browse` / `memory_history` / `memory_rollback` / `memory_sync`（见下表）。
-- **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话工作区路由。所有 LLM 调用带超时，绝不阻塞轮次。
+- **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
+当前版本：**0.2.1** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+
 ## 安装
+
+一键路径使用 `scripts/sync-install.ps1`（见下文「部署 / 更新」）；手动路径如下。两种方式之后都需要重启 DeepSeek Harness。
 
 1. 将包复制到 profile 的外部插件目录：
 
@@ -65,6 +70,8 @@ $DSH_HOME/memories/
 | `scopeMaxBytes` | `2400` | scopedMemory 开启时工作区摘要的注入字节预算。 |
 | `seedFromAgentsMd` | `true` | 是否用 `$DSH_HOME/AGENTS.md` 导入初始摘要。 |
 
+Web 设置页卡片（见下文）可在线编辑 `maxBytes`、`consolidateEvery`、`autoSummarize`、`seedFromAgentsMd`；其余键通过 loader 配置或 `settings.yaml` 的 `memory:` 段配置。
+
 ## 工具
 
 | 工具 | 用途 |
@@ -90,6 +97,8 @@ $DSH_HOME/memories/
 
 `bin/dsh-memory-mcp.mjs` 通过 stdio JSON-RPC（MCP）暴露同一套 Markdown 记忆库，不依赖 DeepSeek Harness 运行时。环境变量：`DSH_MEMORY_DIR`（默认 `~/.dsh/memories`）、`DSH_MEMORY_REDACT=1`（默认）。作用域参数：`global`（默认）、`workspace`/`project`（需 `cwd`）。
 
+提供 9 个工具，存储语义与 DSH 工具一致：`memory_read`、`memory_add`、`memory_update`、`memory_delete`、`memory_search`、`memory_stats`、`memory_history`、`memory_merge`、`memory_review`。客户端配置示例见 [`examples/mcp-config.json`](examples/mcp-config.json)。
+
 
 
 ## 部署 / 更新
@@ -100,6 +109,16 @@ $DSH_HOME/memories/
 powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -DryRun
 powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 ```
+
+### 脚本
+
+| 脚本 | 用途 |
+| --- | --- |
+| `scripts/sync-install.ps1` | 把运行时 + 元数据文件复制到 profile 外部插件目录并校验 SHA-256（`-DryRun` 预览，`-Backup` 写入前快照）。 |
+| `scripts/verify-after-restart.ps1` | 重启后校验：文件哈希、Web 设置白名单、安装副本 MCP 冒烟（`-SkipMcpSmoke`、`-SkipWebSettingsCheck`）。 |
+| `scripts/restart-dsh.ps1` | 停掉并重新拉起 DSH web 进程，随后运行校验（先 `-WhatIf`；会关闭当前会话）。 |
+| `scripts/patch-web-settings.ps1` | 可选：把 `memory` 加入 `dsh-host-apiproxy` 的 Web 设置白名单（幂等、备份 + 语法检查 + 失败回滚）。 |
+| `scripts/mcp-smoke.mjs` | 独立 MCP server 冒烟（版本、工具数、add/search 往返）。 |
 
 ## Web 设置页
 
@@ -112,11 +131,29 @@ powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1 -WhatIf
 powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1
 ```
 
-补丁幂等、自动备份、改后做语法检查。`scripts/verify-after-restart.ps1` 会校验部署的插件文件、客户端 bundle 与这个白名单。
+补丁幂等、自动备份、改后做语法检查。`scripts/verify-after-restart.ps1` 会校验部署的插件文件、客户端 bundle 与这个白名单。本部署已端到端实测（2026-08-15）：编辑 → 保存 → "Settings saved and applied." → `settings.yaml` 的 `memory:` 段落盘（改动即时生效）。
 
 ## 范围
 
-v1 记忆为全局共享（所有会话可见，与 Codex 一致）；项目级作用域记忆留作后续扩展。
+记忆存储于三个作用域：
+
+- `global` —— 所有会话共享（类 Codex 的默认）；
+- `workspace` —— 按工作目录隔离（`ws-<hash>`），`scopedMemory: true` 时启用；
+- `project` —— 按最近 git 根隔离（`project-<hash>`），`scopedMemory: true` 时启用。
+
+工具接受 `scope` 参数（`global` | `workspace` | `project`）；项目作用域解析会话的 `cwd`。各作用域的写权限可用 `readOnlyScopes` 限制。
+
+## 开发与测试
+
+`npm test` 运行 49 项测试（node:test）：
+
+- `test/store.test.js` —— 存储语义、journal、历史、归档、作用域；
+- `test/browser.test.js` —— 交互式 HTML 浏览器的快照渲染；
+- `test/web-settings.test.js` —— 设置端点生命周期（GET/POST、403/409、体积限制），以及 VM 沙箱加载客户端 bundle 断言 `settings.plugin.item` 卡片注册；
+- `test/embedding.integration.test.js` —— fake `/embeddings` 服务 + 本地哈希向量；
+- `test/mcp.integration.test.js` —— 真实 MCP 子进程往返。
+
+架构与机制说明见 [`docs/DESIGN.md`](docs/DESIGN.md)；部署状态见 [`docs/STATUS.md`](docs/STATUS.md)。
 
 ## License
 
