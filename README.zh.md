@@ -14,7 +14,7 @@ $DSH_HOME/memories/
 ```
 
 - **注入** —— 通过 `systemPrompt.context` 在每次提示词组装时重读 `memory_summary.md`，因此 `memory_add` 写入后下一步立即生效。
-- **工具** —— `memory_read` / `memory_add` / `memory_update` / `memory_delete` / `memory_search`（见下表）。
+- **工具** —— `memory_read` / `memory_add` / `memory_update` / `memory_delete` / `memory_search` / `memory_stats`（见下表）。
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后，重新合并全局摘要（原子写入、版本号递增）。所有 LLM 调用走私有串行队列、带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
@@ -59,7 +59,8 @@ $DSH_HOME/memories/
 | `memory_add { content, tags? }` | 存储一条持久事实，返回条目 id。 |
 | `memory_update { id, content?, tags? }` | 替换条目的内容/标签。 |
 | `memory_delete { id }` | 删除条目。 |
-| `memory_search { query, limit? }` | 对原始条目做关键词搜索。 |
+| `memory_search { query, tags?, mode?, limit? }` | 多关键词相关性搜索，支持标签过滤。 |
+| `memory_stats {}` | 报告记忆库健康度（大小、版本、游标、后台任务）。 |
 
 ## 范围
 

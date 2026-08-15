@@ -13,9 +13,13 @@ import {
   normalizeTags,
   parseRaw,
   parseRolloutBlocks,
+  searchEntries,
+  makeSnippet,
+  scoreEntry,
   serializeRaw,
   stripStandaloneVersionLines,
   summaryVersion,
+  tokenizeQuery,
   truncateUtf8,
   validateContent,
   validateEntryInput
@@ -165,4 +169,61 @@ test('entry validation enforces content and tag quotas', () => {
   assert.throws(() => normalizeTags(['a'.repeat(49)]), /exceeds 48 characters/)
   const many = normalizeTags(Array.from({ length: 20 }, (_, i) => `tag${i}`))
   assert.equal(many.length, 16)
+})
+test('tokenizeQuery and makeSnippet support multi-term search', () => {
+  assert.deepEqual(tokenizeQuery('Alpha, beta-中文'), ['alpha', 'beta', '中文'])
+  const content = 'x'.repeat(80) + 'needle here' + 'y'.repeat(200)
+  const snippet = makeSnippet(content, ['needle'])
+  assert.equal(snippet.includes('needle'), true)
+  assert.equal(snippet.startsWith('…'), true)
+  assert.equal(snippet.endsWith('…'), true)
+})
+
+test('searchEntries ranks, filters tags, and honors all/any modes', () => {
+  const now = Date.parse('2026-08-15T12:00:00Z')
+  const entries = [
+    { ts: '2026-08-15 10:00', id: 'a', tags: ['project'], content: 'alpha beta project fact' },
+    { ts: '2026-08-14 10:00', id: 'b', tags: ['other'], content: 'gamma project note' },
+    { ts: '2026-08-15 11:00', id: 'c', tags: [], content: 'alpha only' }
+  ]
+  const all = searchEntries(entries, 'alpha beta', { mode: 'all', now })
+  assert.deepEqual(all.map((item) => item.entry.id), ['a'])
+  const any = searchEntries(entries, 'alpha beta', { mode: 'any', now })
+  assert.deepEqual(any.map((item) => item.entry.id).sort(), ['a', 'c'])
+  const tagged = searchEntries(entries, 'project', { tags: ['project'], now })
+  assert.deepEqual(tagged.map((item) => item.entry.id), ['a'])
+  const ranked = searchEntries(entries, 'project', { now })
+  assert.equal(ranked[0].entry.id, 'a')
+  assert.equal(ranked[0].score > ranked[1].score, true)
+})
+
+test('scoreEntry weights exact tag matches and recency', () => {
+  const now = Date.parse('2026-08-15T12:00:00Z')
+  const tagged = scoreEntry({ ts: '2026-08-15 10:00', content: 'about project', tags: ['project'] }, ['project'], now)
+  const untagged = scoreEntry({ ts: '2026-08-15 10:00', content: 'about project', tags: [] }, ['project'], now)
+  assert.equal(tagged.score > untagged.score, true)
+  const newer = scoreEntry({ ts: '2026-08-15 10:00', content: 'fact', tags: [] }, ['fact'], now)
+  const older = scoreEntry({ ts: '2026-07-01 10:00', content: 'fact', tags: [] }, ['fact'], now)
+  assert.equal(newer.score > older.score, true)
+})
+
+test('raw parse cache invalidates after mutations', async (t) => {
+  const store = await tempStore(t)
+  const entry = await store.appendRawEntry({ content: 'original content', tags: ['one'] })
+  assert.equal((await store.readRawEntries())[0].content, 'original content')
+  await store.updateRawEntry(entry.id, { content: 'updated content' })
+  assert.equal((await store.readRawEntries())[0].content, 'updated content')
+  const hits = await store.searchRaw('updated', { mode: 'all' })
+  assert.equal(hits.length, 1)
+  assert.equal(hits[0].score > 0, true)
+})
+
+test('fileBytes and rolloutFileCount report on-disk state', async (t) => {
+  const store = await tempStore(t)
+  await store.seedSummary('hello', 512)
+  await store.appendRawEntry({ content: 'fact', tags: [] })
+  await store.appendRolloutSummary('sid-test', 'block')
+  assert.equal((await store.fileBytes('memory_summary.md')) > 0, true)
+  assert.equal((await store.fileBytes('raw_memories.md')) > 0, true)
+  assert.equal(await store.rolloutFileCount(), 1)
 })
