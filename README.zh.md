@@ -53,6 +53,9 @@ $DSH_HOME/memories/
 | `autoSummarize` | `true` | 是否把结束的轮次蒸馏成 rollout 摘要。 |
 | `summarizeProvider` / `summarizeModel` | 当前选择的模型 | 摘要使用的模型。 |
 | `consolidateEvery` | `3` | 累计多少份 rollout 摘要后重新合并全局摘要。 |
+| `summaryMaxTokens` | `600` | 单轮摘要 LLM 的最大输出 token。 |
+| `consolidateMaxTokens` | `1500` | 摘要合并 LLM 的最大输出 token。 |
+| `llmRetries` | `1` | LLM 瞬时失败后的重试次数。 |
 | `seedFromAgentsMd` | `true` | 是否用 `$DSH_HOME/AGENTS.md` 导入初始摘要。 |
 
 ## 工具

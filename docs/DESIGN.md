@@ -73,7 +73,7 @@ v3
 ## 失败模式
 
 - 模型不可用 / 未配置 → `resolveRoute()` 返回 undefined，自动摘要跳过并告警一次；工具与注入不受影响；
-- LLM 超时 → `AbortSignal` 60s 中止，catch 记日志；
+- LLM 超时/瞬时失败 → 每调用 `llmRetries`（默认 1）次重试，单次 60s 超时；结构化日志记录 provider/model/耗时/usage，`memory_stats` 汇总调用数与失败数；
 - 摘要/合并的 LLM 调用本身不触发记忆写入（非代理轮次，无递归风险）；
 - 插件停止/更新 → `ctx.effect` 清理 + 各注册的 disposer 全部释放，无全局残留。
 - `AGENTS.md` 重同步：state 记录源与种子摘要指纹，`memory_sync` 只在「源变化且摘要未被手改」时导入，双方都变化则报告冲突。

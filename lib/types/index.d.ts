@@ -26,6 +26,12 @@ export interface MemoryConfig {
   summarizeModel?: string
   /** Rollout summaries written before re-consolidating the global summary (default 3). */
   consolidateEvery?: number
+  /** Maximum output tokens for turn summarization (default 600). */
+  summaryMaxTokens?: number
+  /** Maximum output tokens for summary consolidation (default 1500). */
+  consolidateMaxTokens?: number
+  /** Retries after a transient LLM failure (default 1). */
+  llmRetries?: number
   /** Seed the first summary from `$DSH_HOME/AGENTS.md` (default true). */
   seedFromAgentsMd?: boolean
 }

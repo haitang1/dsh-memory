@@ -53,6 +53,9 @@ $DSH_HOME/memories/
 | `autoSummarize` | `true` | Distill finished turns into rollout summaries. |
 | `summarizeProvider` / `summarizeModel` | selected agent model | Model used for summarization. |
 | `consolidateEvery` | `3` | Rollout summaries written before re-consolidating the global summary. |
+| `summaryMaxTokens` | `600` | Max output tokens for turn summarization. |
+| `consolidateMaxTokens` | `1500` | Max output tokens for summary consolidation. |
+| `llmRetries` | `1` | Retries after a transient LLM failure. |
 | `seedFromAgentsMd` | `true` | Seed the first summary from `$DSH_HOME/AGENTS.md`. |
 
 ## Tools
