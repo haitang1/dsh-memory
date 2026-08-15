@@ -109,6 +109,7 @@ const tools = [
         tags: { type: 'array', items: { type: 'string' } },
         mode: { type: 'string', description: "all or any" },
         fuzzy: { type: 'boolean' },
+        vector: { type: 'boolean' },
         limit: { type: 'number' },
         scope: { type: 'string' },
         cwd: { type: 'string' }
@@ -231,7 +232,7 @@ async function callTool(name, args = {}) {
       if (mode !== 'all' && mode !== 'any') throw new Error("mode must be 'all' or 'any'")
       const tags = Array.isArray(args.tags) ? args.tags.filter((tag) => typeof tag === 'string').map((tag) => tag.trim()).filter(Boolean).slice(0, 16) : []
       const entries = (await store.readRawEntries()).concat(await store.readArchivedEntries())
-      const hits = searchEntries(entries, query, { tags, mode, limit, fuzzy: args.fuzzy !== false })
+      const hits = searchEntries(entries, query, { tags, mode, limit, fuzzy: args.fuzzy !== false, vector: args.vector === true })
       return { scope: target.key, matches: hits.map(({ entry, score }) => ({ id: entry.id, ts: entry.ts, score, content: entry.content, tags: entry.tags })) }
     }
     case 'memory_update': {

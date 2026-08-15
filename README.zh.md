@@ -72,7 +72,7 @@ $DSH_HOME/memories/
 | `memory_add { content, tags?, scope?, importance?, allowDuplicate?, allowSecret? }` | 存储事实；明显凭据默认拒绝（除非 `allowSecret:true`），`importance` 0-3 影响排序，默认拒绝重复事实。 |
 | `memory_update { id, content?, tags?, importance?, scope? }` | 在指定作用域替换条目的内容/标签/重要性。 |
 | `memory_delete { id, scope? }` | 从指定作用域删除条目。 |
-| `memory_search { query, tags?, mode?, fuzzy?, limit?, scope? }` | 在指定作用域（`global`/`workspace`/`project`）做 BM25 多关键词相关性搜索，支持标签过滤与零依赖拼写/CJK 模糊兜底。 |
+| `memory_search { query, tags?, mode?, fuzzy?, vector?, limit?, scope? }` | BM25 搜索 + 可选本地哈希向量余弦检索（`vector:true`），为缺失查询词召回候选。 |
 | `memory_stats {}` | 报告全局 + 各作用域库存、游标、历史、LLM 计数与最近错误。 |
 | `memory_history { scope? }` | 列出保留的摘要版本（新→旧）供 `memory_rollback` 使用。 |
 | `memory_rollback { version }` | 回滚到之前保留的摘要版本。 |

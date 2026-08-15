@@ -17,6 +17,9 @@ import {
   byteLength,
   ensureVersionLine,
   journalToNetChanges,
+  cosineSimilarity,
+  localEmbedding,
+  vectorSearchEntries,
   normalizeTags,
   findGitRoot,
   normalizeScopeArg,
@@ -444,4 +447,24 @@ test('redactSecrets replaces findings with typed markers', () => {
   const output = redactSecrets(input)
   assert.equal(output.includes('sk-abcdefghijklmnopqrstuvwxyz123456'), false)
   assert.equal(output.includes('[REDACTED:openai-key]'), true)
+})
+test('localEmbedding and cosineSimilarity rank similar text higher', () => {
+  const base = localEmbedding('restart project service')
+  const similar = localEmbedding('deployment restart service')
+  const unrelated = localEmbedding('cooking pasta recipe')
+  assert.equal(cosineSimilarity(base, base) > 0.99, true)
+  assert.equal(cosineSimilarity(base, similar) > cosineSimilarity(base, unrelated), true)
+})
+
+test('vector search supplies missing-term candidates', () => {
+  const entries = [
+    { ts: '2026-08-15 10:00', id: 'a', tags: [], content: 'deployment restart service' },
+    { ts: '2026-08-15 10:00', id: 'b', tags: [], content: 'cooking pasta recipe' }
+  ]
+  const now = Date.parse('2026-08-15T12:00:00Z')
+  const vector = searchEntries(entries, 'restart project service', { mode: 'all', vector: true, now })
+  const lexical = searchEntries(entries, 'restart project service', { mode: 'all', vector: false, fuzzy: false, now })
+  assert.equal(vector.length >= 1, true)
+  assert.equal(vector[0].entry.id, 'a')
+  assert.equal(lexical.length, 0)
 })
