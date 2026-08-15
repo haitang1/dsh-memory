@@ -66,11 +66,11 @@ $DSH_HOME/memories/
 
 | 工具 | 用途 |
 | --- | --- |
-| `memory_read { scope? }` | 读取全局或当前工作区记忆摘要。 |
-| `memory_add { content, tags?, scope? }` | 在 `global` 或 `workspace` 作用域存储事实，返回条目 id。 |
+| `memory_read { scope? }` | 读取全局、工作区或项目（最近 git 根）记忆摘要。 |
+| `memory_add { content, tags?, scope? }` | 在 `global`、`workspace` 或 `project` 作用域存储事实，返回条目 id。 |
 | `memory_update { id, content?, tags?, scope? }` | 在指定作用域替换条目的内容/标签。 |
 | `memory_delete { id, scope? }` | 从指定作用域删除条目。 |
-| `memory_search { query, tags?, mode?, limit?, scope? }` | 在指定作用域做多关键词相关性搜索并支持标签过滤。 |
+| `memory_search { query, tags?, mode?, limit?, scope? }` | 在指定作用域（`global`/`workspace`/`project`）做多关键词相关性搜索并支持标签过滤。 |
 | `memory_stats {}` | 报告记忆库健康度（大小、版本、游标、后台任务）。 |
 | `memory_rollback { version }` | 回滚到之前保留的摘要版本。 |
 | `memory_sync {}` | AGENTS.md 变化时重新导入；若摘要也被手改则报告冲突而不覆盖。 |

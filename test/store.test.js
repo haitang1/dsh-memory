@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -12,7 +12,9 @@ import {
   ensureVersionLine,
   journalToNetChanges,
   normalizeTags,
+  findGitRoot,
   normalizeScopeArg,
+  projectScopeKey,
   scopeFromSession,
   scopeKeyForCwd,
   scopedStoreDir,
@@ -345,9 +347,18 @@ test('scope helpers derive stable per-workspace keys', () => {
   assert.equal(scopedStoreDir('/root', 'global'), '/root')
   assert.equal(scopedStoreDir('/root', 'ws-abc').includes('scopes'), true)
   assert.equal(normalizeScopeArg('workspace'), 'workspace')
-  assert.equal(normalizeScopeArg('PROJECT'), 'workspace')
+  assert.equal(normalizeScopeArg('PROJECT'), 'project')
   assert.equal(normalizeScopeArg('global'), 'global')
   assert.equal(normalizeScopeArg('other'), undefined)
   assert.equal(scopeFromSession({ header: { cwd: 'C:/work/p' } }), scopeKeyForCwd('C:/work/p'))
   assert.equal(scopeFromSession(undefined), 'global')
+  assert.equal(projectScopeKey('C:/repo').startsWith('project-'), true)
+})
+
+test('findGitRoot walks up to a .git directory or worktree file', async (t) => {
+  const base = await mkdtemp(join(tmpdir(), 'dsh-memory-git-'))
+  t.after(() => rm(base, { recursive: true, force: true }))
+  await mkdir(join(base, 'repo', 'nested', 'deeper'), { recursive: true })
+  await mkdir(join(base, 'repo', '.git'), { recursive: true })
+  assert.equal((await findGitRoot(join(base, 'repo', 'nested', 'deeper'))).toLowerCase(), join(base, 'repo').toLowerCase())
 })

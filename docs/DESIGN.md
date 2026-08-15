@@ -80,7 +80,7 @@ v3
 
 ## 已知限制与扩展方向
 
-- 作用域：`scopedMemory` 开启后按 `session.header.cwd` 派生 `ws-<hash>` 工作区库（`scopes/` 目录），工具 `scope` 参数、注入（global + workspace 预算拆分）与每作用域 rollout/合并都按会话工作区路由。
+- 作用域：`scopedMemory` 开启后按 `session.header.cwd` 派生 `ws-<hash>` 工作区库（`scopes/` 目录）；`scope:'project'` 取会话 cwd 的最近 `.git` 根派生 `project-<hash>`；工具、注入（global + workspace 预算拆分）与每作用域 rollout/合并均按路由作用域工作。根目录是 canonical global 作用域，旧数据无需迁移。
 - 搜索为关键词子串匹配；向量检索（embeddings）留作 v2；
 - 摘要去重依赖 LLM 合并提示；条目级去重（按内容哈希）留作 v2。
 
