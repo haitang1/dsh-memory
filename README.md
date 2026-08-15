@@ -17,7 +17,7 @@ $DSH_HOME/memories/
 ```
 
 - **Injection** — `systemPrompt.context` re-reads `memory_summary.md` at every prompt assembly, so a `memory_add` call surfaces in the very next model step.
-- **Tools** — `memory_read`, `memory_add`, `memory_update`, `memory_delete`, `memory_search`, `memory_stats`, `memory_rollback`, `memory_sync` (see below).
+- **Tools** — `memory_read`, `memory_add`, `memory_update`, `memory_delete`, `memory_search`, `memory_export`, `memory_import`, `memory_stats`, `memory_rollback`, `memory_sync` (see below).
 - **Auto memory** — on each finished turn of a root agent, the new conversation text is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
@@ -74,6 +74,8 @@ $DSH_HOME/memories/
 | `memory_stats {}` | Report memory store health (sizes, versions, cursors, background work). |
 | `memory_rollback { version }` | Restore a previously retained summary version. |
 | `memory_sync {}` | Re-import AGENTS.md when it changed; reports a conflict instead of overwriting manual summary edits. |
+| `memory_export { targetDir, scope?, overwrite? }` | Export a scope to Codex-compatible `memory_summary.md` + `raw_memories.md`. |
+| `memory_import { sourceDir, scope?, merge? }` | Import Codex-compatible `raw_memories.md` into a scope (append or replace). |
 
 ## Scope
 
