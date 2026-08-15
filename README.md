@@ -122,7 +122,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## Web settings page
 
-The plugin ships a Web client bundle that registers a "Memory (dsh-memory)" card on the plugin configuration page (Settings → Plugins → Plugin config) automatically — no extra step is required beyond the deploy sync. The card edits `maxBytes`, `consolidateEvery`, `autoSummarize`, and `seedFromAgentsMd` through the plugin's own same-origin endpoint (`/_dsh/memory/settings`, registered by the host half).
+The plugin ships a Web client bundle that registers a "Memory (dsh-memory)" card on the plugin configuration page (Settings → Plugins → Plugin config) automatically — no extra step is required beyond the deploy sync. The card edits `maxBytes`, `consolidateEvery`, `autoSummarize`, and `seedFromAgentsMd` through the plugin's own same-origin endpoint (`/_dsh/memory/settings`, registered by the host half). The card copy is localized (English/Chinese) and follows DSH's language setting.
 
 Optionally, the `memory` namespace can also be exposed to the generic Web settings API (whose allowlist lives in the `dsh-host-apiproxy` package, one level above plugins):
 

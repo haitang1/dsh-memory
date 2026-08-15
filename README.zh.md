@@ -122,7 +122,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## Web 设置页
 
-插件自带 Web 客户端 bundle，会自动在插件配置页（设置 → 插件 → 插件配置）注册「Memory (dsh-memory)」卡片，无需额外步骤。卡片可编辑 `maxBytes`、`consolidateEvery`、`autoSummarize`、`seedFromAgentsMd`，通过插件自己的同源端点（`/_dsh/memory/settings`，由 host 半部分注册）读写配置。
+插件自带 Web 客户端 bundle，会自动在插件配置页（设置 → 插件 → 插件配置）注册「Memory (dsh-memory)」卡片，无需额外步骤。卡片可编辑 `maxBytes`、`consolidateEvery`、`autoSummarize`、`seedFromAgentsMd`，通过插件自己的同源端点（`/_dsh/memory/settings`，由 host 半部分注册）读写配置。卡片文案为中英双语，跟随 DSH 的语言设置自动切换。
 
 可选：把 `memory` 命名空间也暴露给通用 Web 设置 API（其白名单位于 `dsh-host-apiproxy` 包内，比插件高一层）：
 

@@ -143,14 +143,16 @@ test('Web route waits for the webServer service before registering', () => {
 test('client bundle registers the settings.plugin.item card', () => {
   const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
   assert.match(source, /__ModuleLoader__\.load\(\{\s*id: '@dsh-external\/dsh-memory'/)
-  assert.match(source, /exports\.inject = \['slots'\]/)
+  assert.match(source, /exports\.inject = \['slots', 'locale'\]/)
   assert.match(source, /settings\.plugin\.item/)
   assert.match(source, /id: 'memory'/)
   assert.match(source, /function apply\(ctx\)/)
   assert.match(source, /_dsh\/memory\/settings/)
+  assert.match(source, /locale\.register\(NS, \{ en: en, zh: zh \}\)/)
+  assert.match(source, /var zh = \{/)
 })
 
-test('client bundle loads in a browser-like sandbox and registers the card', () => {
+test('client bundle loads in a browser-like sandbox, localizes, and registers the card', () => {
   const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
 
   const slotRegistrations = []
@@ -179,12 +181,31 @@ test('client bundle loads in a browser-like sandbox and registers the card', () 
   assert.equal(loaded.id, '@dsh-external/dsh-memory')
 
   const exports = loaded.factory(requireMock)
-  assert.deepEqual([...exports.inject], ['slots'])
+  assert.deepEqual([...exports.inject], ['slots', 'locale'])
   assert.equal(typeof exports.apply, 'function')
 
   const effects = []
+  const localeRegistrations = []
+  const localeBindings = []
   const fakeCtx = {
-    effect(fn, label) { effects.push({ fn, label }) },
+    effect(fn, label) {
+      effects.push({ fn, label })
+      // Cordis executes the effect callback immediately and keeps its disposer.
+      const disposer = fn()
+      return () => { if (typeof disposer === 'function') disposer() }
+    },
+    locale: {
+      register(ns, dicts) {
+        localeRegistrations.push({ ns, dicts })
+        return () => {}
+      },
+      bind(ns) {
+        localeBindings.push(ns)
+        // Return a translator that stamps the key so the card's copy can be
+        // observed coming from `t(...)` rather than a hard-coded string.
+        return (key) => `t:${key}`
+      }
+    },
     slots: {
       inject(key, callback) {
         assert.equal(key, 'settings.plugin.item')
@@ -198,10 +219,28 @@ test('client bundle loads in a browser-like sandbox and registers the card', () 
     }
   }
   exports.apply(fakeCtx)
+
   assert.equal(slotRegistrations.length, 1)
-  assert.equal(slotRegistrations[0].options.name, 'settings.plugin.item')
-  assert.equal(slotRegistrations[0].options.id, 'memory')
-  assert.equal(slotRegistrations[0].options.order, 30)
-  assert.equal(typeof slotRegistrations[0].component, 'function')
+  const registration = slotRegistrations[0]
+  assert.equal(registration.options.name, 'settings.plugin.item')
+  assert.equal(registration.options.id, 'memory')
+  assert.equal(registration.options.order, 30)
+  assert.equal(typeof registration.options.label, 'function')
+  assert.equal(registration.options.label(), 't:nav')
+  assert.equal(typeof registration.component, 'function')
+
+  // locale registered with en/zh dictionaries carrying the card copy keys
+  assert.equal(localeRegistrations.length, 1)
+  assert.equal(localeRegistrations[0].ns, 'dsh-memory')
+  assert.ok(localeRegistrations[0].dicts.en && localeRegistrations[0].dicts.zh)
+  assert.equal(typeof localeRegistrations[0].dicts.zh.save, 'string')
+  assert.equal(typeof localeRegistrations[0].dicts.zh.saved, 'string')
+  assert.deepEqual(localeBindings, ['dsh-memory'])
+
+  // Rendering the card (initial loading state) draws localized copy via t()
+  const tree = registration.component()
+  const treeText = JSON.stringify(tree)
+  assert.ok(treeText.includes('t:loading') || treeText.includes('t:unavailable'), 'card copy must come from t()')
+  assert.ok(effects.some((entry) => entry.label && entry.label.includes('locale')))
   assert.ok(effects.some((entry) => entry.label && entry.label.includes('settings card styles')))
 })
