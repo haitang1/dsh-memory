@@ -40,8 +40,13 @@
 - settings 说明：memory 命名空间已随插件注册；Web `settings.describe` 仅返回 host-apiproxy 白名单命名空间。两条路径均已落地：
   1. `scripts/patch-web-settings.ps1` 把 `memory` 加入 `WEB_SETTINGS_NAMESPACES` 白名单（已应用于本部署，备份 `index.js.bak-20260815`，`node --check` 通过），使 describe/update API 也覆盖 memory；
   2. **Web 设置页卡片（主路径）**：插件新增客户端 bundle（`lib/client.js`，`dsh.client` 声明 + `exports["./client"]`），在 `settings.plugin.item` Slot 注册 "Memory" 卡片（order 30），通过同源端点 `/_dsh/memory/settings`（host `lib/web.js` 注册）读写配置——不依赖 apiproxy 白名单。
-- 本部署同步状态（2026-08-15 19:45）：18/18 文件 SHA-256 一致（含 `lib/client.js`、`lib/web.js`、`lib/types/client.d.ts`）；`verify-after-restart.ps1` 全绿；`npm test` 47/47（新增 `test/web-settings.test.js` 6 项：GET 快照、POST 保存、403 跨站拒绝、409 冲突、非法 action、client bundle 静态断言）。
-- 待办：重启 DSH 后 GUI 验证 设置 → 插件 → 插件配置 出现 "Memory (dsh-memory)" 卡片，并能编辑/保存 maxBytes 等配置。
+- 本部署同步状态（2026-08-15 20:45）：18/18 文件 SHA-256 一致（含 `lib/client.js`、`lib/web.js`、`lib/types/client.d.ts`）；`verify-after-restart.ps1` 全绿；`npm test` 49/49（`test/web-settings.test.js` 覆盖 GET 快照、POST 保存、403/409、非法 action、client bundle 静态断言、VM 沙箱加载与卡片注册、webServer 等待注册）。
+- **GUI 验证完成（2026-08-15 20:48，DSH 重启后）**：
+  1. 设置 → 插件 → 插件配置 出现 "Memory (dsh-memory)" 卡片（与终端/Agent 循环/网页搜索并列）；
+  2. 展开卡片，表单正确加载当前值（maxBytes=8000 等）；
+  3. 编辑 maxBytes → Save → 页面显示 "Settings saved and applied."，Save/Discard 复位为禁用；
+  4. 宿主落盘确认：`settings.yaml` 出现 `memory:` 段（maxBytes 往返测试后恢复 8000，autoSummarize=true 等）——Web 卡片 → 同源端点 `/_dsh/memory/settings` → settings.replace → 落盘 → `applies: live` 即时生效，全链路闭环。
+- 目标「让 DSH Web 设置页面出现 memory」已达成。
 
 ## 部署命令记录
 
