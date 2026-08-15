@@ -28,6 +28,10 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./client": {
+      "types": "./lib/types/client.d.ts",
+      "default": "./lib/client.js"
+    },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
@@ -45,6 +49,12 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ]
     }
   },
   "peerDependencies": {
@@ -56,6 +66,6 @@
   },
   "license": "MIT",
   "scripts": {
-    "test": "node --test test/store.test.js test/browser.test.js test/embedding.integration.test.js test/mcp.integration.test.js"
+    "test": "node --test test/store.test.js test/browser.test.js test/web-settings.test.js test/embedding.integration.test.js test/mcp.integration.test.js"
   }
 }

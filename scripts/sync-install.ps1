@@ -29,7 +29,10 @@ $files = @(
   'lib\index.js',
   'lib\store.js',
   'lib\browser.js',
+  'lib\client.js',
+  'lib\web.js',
   'lib\types\index.d.ts',
+  'lib\types\client.d.ts',
   'bin\dsh-memory-mcp.mjs',
   'package.json',
   'README.md',
@@ -39,7 +42,8 @@ $files = @(
   'scripts\mcp-smoke.mjs',
   'scripts\verify-after-restart.ps1',
   'scripts\restart-dsh.ps1',
-  'scripts\sync-install.ps1'
+  'scripts\sync-install.ps1',
+  'scripts\patch-web-settings.ps1'
 )
 
 Write-Host "source: $SourceDir"

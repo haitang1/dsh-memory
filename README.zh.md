@@ -101,14 +101,18 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -DryRun
 powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 ```
 
-要在 DSH Web 设置页显示 `memory` 命名空间，部署需要把它加入 Web 配置客户端的白名单（该决定位于 `dsh-host-apiproxy` 包内，比插件高一层）：
+## Web 设置页
+
+插件自带 Web 客户端 bundle，会自动在插件配置页（设置 → 插件 → 插件配置）注册「Memory (dsh-memory)」卡片，无需额外步骤。卡片可编辑 `maxBytes`、`consolidateEvery`、`autoSummarize`、`seedFromAgentsMd`，通过插件自己的同源端点（`/_dsh/memory/settings`，由 host 半部分注册）读写配置。
+
+可选：把 `memory` 命名空间也暴露给通用 Web 设置 API（其白名单位于 `dsh-host-apiproxy` 包内，比插件高一层）：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1 -WhatIf
 powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1
 ```
 
-补丁幂等、自动备份、改后做语法检查。`scripts/verify-after-restart.ps1` 会同时校验部署的插件文件与这个白名单。
+补丁幂等、自动备份、改后做语法检查。`scripts/verify-after-restart.ps1` 会校验部署的插件文件、客户端 bundle 与这个白名单。
 
 ## 范围
 

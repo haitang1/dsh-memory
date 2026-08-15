@@ -101,14 +101,18 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -DryRun
 powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 ```
 
-To show the `memory` namespace on the DSH Web settings page, the deployment must expose it in the Web configuration client's allowlist (this is a decision made inside the `dsh-host-apiproxy` package, one level above plugins):
+## Web settings page
+
+The plugin ships a Web client bundle that registers a "Memory (dsh-memory)" card on the plugin configuration page (Settings → Plugins → Plugin config) automatically — no extra step is required beyond the deploy sync. The card edits `maxBytes`, `consolidateEvery`, `autoSummarize`, and `seedFromAgentsMd` through the plugin's own same-origin endpoint (`/_dsh/memory/settings`, registered by the host half).
+
+Optionally, the `memory` namespace can also be exposed to the generic Web settings API (whose allowlist lives in the `dsh-host-apiproxy` package, one level above plugins):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1 -WhatIf
 powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1
 ```
 
-The patch is idempotent, backs up the target, and re-checks syntax. `scripts/verify-after-restart.ps1` checks both the deployed plugin files and this allowlist.
+The patch is idempotent, backs up the target, and re-checks syntax. `scripts/verify-after-restart.ps1` checks the deployed plugin files, the client bundle, and this allowlist.
 
 ## Scope
 

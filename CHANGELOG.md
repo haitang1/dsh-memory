@@ -2,15 +2,25 @@
 
 ## 0.2.1 (2026-08-15)
 
-### Web settings page exposure
+### Web settings page card
 
+- New client bundle `lib/client.js` (`dsh.client` + `exports["./client"]`):
+  registers a "Memory" card on the `settings.plugin.item` slot (order 30) so
+  the plugin configuration page shows editable memory settings (maxBytes,
+  consolidateEvery, autoSummarize, seedFromAgentsMd) with save/discard.
+- New host backend `lib/web.js`: a same-origin `/_dsh/memory/settings`
+  endpoint (GET snapshot / POST save with optimistic revision, 403
+  cross-site rejection, 409 on conflict) registered through `webServer`
+  when present; dependency-free for unit testing.
 - `scripts/patch-web-settings.ps1`: idempotently adds `memory` to the
   `WEB_SETTINGS_NAMESPACES` allowlist in the deployed `dsh-host-apiproxy`
-  package so the Web configuration client serves the memory namespace
-  (the allowlist lives one level above plugins). Backs up the target,
-  re-checks syntax, and rolls back on failure.
-- `scripts/verify-after-restart.ps1` now also checks the allowlist and fails
-  when `memory` is missing (opt-out via `-SkipWebSettingsCheck`).
+  package so the Web settings API also serves the memory namespace
+  (optional; the card works without it). Backs up the target, re-checks
+  syntax, and rolls back on failure.
+- `scripts/verify-after-restart.ps1` now also checks the allowlist and the
+  new client/web files (opt-out via `-SkipWebSettingsCheck`).
+- Tests: `test/web-settings.test.js` (6 cases) covering the endpoint
+  lifecycle and the client bundle registration; suite is 47/47.
 
 ## 0.2.0 (2026-08-15)
 
