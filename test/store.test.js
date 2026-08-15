@@ -21,6 +21,8 @@ import {
   summaryVersion,
   tokenizeQuery,
   truncateUtf8,
+  truncateUtf8Markdown,
+  validateMergedSummary,
   validateContent,
   validateEntryInput
 } from '../lib/store.js'
@@ -226,4 +228,39 @@ test('fileBytes and rolloutFileCount report on-disk state', async (t) => {
   assert.equal((await store.fileBytes('memory_summary.md')) > 0, true)
   assert.equal((await store.fileBytes('raw_memories.md')) > 0, true)
   assert.equal(await store.rolloutFileCount(), 1)
+})
+test('truncateUtf8Markdown keeps line boundaries and drops unclosed fences', () => {
+  const text = '# DSH memory\n\nv2\n\n## Notes\n\nline one\nline two\n\n```js\nconst x = 1\n'
+  const bounded = truncateUtf8Markdown(text, 40)
+  assert.equal(byteLength(bounded) <= 40, true)
+  assert.equal(bounded.includes('```js'), false)
+  assert.equal(bounded.includes('line two'), false)
+  assert.equal(bounded.endsWith('\n'), true)
+})
+
+test('validateMergedSummary rejects malformed model output', () => {
+  const valid = '# DSH memory\n\nPreamble.\n\nv3\n\n## Facts\n\n- fact\n'
+  assert.deepEqual(validateMergedSummary(valid), { ok: true, text: valid.trim() })
+  assert.equal(validateMergedSummary('no header here').ok, false)
+  assert.equal(validateMergedSummary('# DSH memory\n\n## Facts\n').ok, false)
+  assert.equal(validateMergedSummary('# DSH memory\n\nv3\n').ok, false)
+})
+
+test('summary history archives, prunes, lists, and restores by version', async (t) => {
+  const store = await tempStore(t)
+  const v1 = '# DSH memory\n\nPreamble.\n\nv1\n\n## Facts\n\n- one\n'
+  await store.writeAtomic('memory_summary.md', v1)
+  const v2 = '# DSH memory\n\nPreamble.\n\nv2\n\n## Facts\n\n- two\n'
+  await store.writeAtomic('memory_summary.md', v2)
+  const archived2 = await store.archiveCurrentSummary(2)
+  assert.equal(archived2 !== null, true)
+  const v3 = '# DSH memory\n\nPreamble.\n\nv3\n\n## Facts\n\n- three\n'
+  await store.writeAtomic('memory_summary.md', v3)
+  await store.archiveCurrentSummary(2)
+  const history = await store.listSummaryHistory()
+  assert.equal(history.length, 2)
+  const latest = await store.latestSummaryHistory(2)
+  assert.equal(latest.version, 2)
+  assert.equal(latest.text.includes('- two'), true)
+  assert.equal((await store.latestSummaryHistory(1)), null)
 })

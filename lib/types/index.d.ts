@@ -14,6 +14,8 @@ export interface MemoryConfig {
   maxBytes?: number
   /** Byte budget for the consolidation input sent to the merge model (default 40000). */
   consolidateMaxBytes?: number
+  /** Number of previous summary versions retained for rollback (default 20, 0 disables history). */
+  keepSummaryVersions?: number
   /** Distill turns into rollout summaries (default true). */
   autoSummarize?: boolean
   /** Provider used for summarization; defaults to the selected agent model. */
