@@ -60,6 +60,7 @@ $DSH_HOME/memories/
 | `maxActiveSummaries` | `4` | 同时进行的轮次摘要上限，超出后丢弃新任务。 |
 | `scopedMemory` | `false` | 开启按工作区隔离的记忆作用域。 |
 | `redactSecrets` | `true` | 注入前对疑似凭据文本做脱敏。 |
+| `readOnlyScopes` | `[]` | 禁止写入工具的作用域键（`global`、精确 `ws-*`/`project-*`，或 `*` 表示全部）。 |
 | `scopeMaxBytes` | `2400` | scopedMemory 开启时工作区摘要的注入字节预算。 |
 | `seedFromAgentsMd` | `true` | 是否用 `$DSH_HOME/AGENTS.md` 导入初始摘要。 |
 

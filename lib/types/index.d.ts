@@ -40,6 +40,8 @@ export interface MemoryConfig {
   scopeMaxBytes?: number
   /** Redact detected credential patterns from injected summaries (default true). */
   redactSecrets?: boolean
+  /** Scope keys that are read-only for write tools ('global', exact ws/project keys, or '*' for all). */
+  readOnlyScopes?: string[]
   /** Seed the first summary from `$DSH_HOME/AGENTS.md` (default true). */
   seedFromAgentsMd?: boolean
 }

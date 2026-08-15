@@ -40,7 +40,7 @@
 - **P2.2 检索增强（零依赖部分）**：已实现 BM25（idf/tf 归一）+ 全词/标签/新近度 + 字符 bigram 模糊兜底（`fuzzy` 默认开启，拼写容错与 CJK 子串覆盖）。**待办**：可选神经网络 embedding provider + 向量索引（需确认提供商）。
 - **P2.3 互操作（Codex 文件级部分）**：已实现 `memory_export`（作用域 → `memory_summary.md` + `raw_memories.md`，含归档条目，overwrite 保护）与 `memory_import`（追加或替换，新 id + 配额校验 + journal 记录）。**待办**：本地 MCP 服务器形态、Codex 汇总文件合并导入。
 - **P2.4 生命周期管理**：已实现 `importance` 0-3 元数据（raw 持久化、搜索加权、add/update 参数）、`memory_add` 归一化重复拒绝（`allowDuplicate` 覆盖）、`memory_review`（最旧优先、`olderThanDays` 过滤、Dice 近重复组建议、永不自动删除）、`memory_merge`（保留 id、最长内容/标签并集/最高重要性，写 update+delete journal）。**待办**：TTL/accessedAt 字段。
-- **P2.6 安全隐私（部分）**：已实现 `detectSecrets`（AWS/GitHub/OpenAI/私钥/credential 赋值/高熵 token）与 `redactSecrets`；注入摘要默认脱敏（`redactSecrets=true`），`memory_add` 对明显凭据拒绝并需 `allowSecret:true`。**待办**：scope 级只读预设、云端同步审批 UI。
+- **P2.6 安全隐私**：已实现 `detectSecrets`（AWS/GitHub/OpenAI/私钥/credential 赋值/高熵 token）与 `redactSecrets`；注入摘要默认脱敏（`redactSecrets=true`），`memory_add` 对明显凭据拒绝并需 `allowSecret:true`；`readOnlyScopes` 可按 scope 阻止 add/update/delete/merge/import/rollback/sync。**待办**：云端同步审批 UI。
 - **P2.5 可观测性（数据层）**：已实现 `memory_stats` 的 scope 库存（每作用域 rawCount/summaryVersion/journalCursor/consolidating）、errorCount/lastError 遥测，以及 `memory_history` 版本浏览。**待办**：设置界面可视化（Web UI 层）。
 - **待办**：运行副本部署与 DSH 重启验证（需用户确认）。
 

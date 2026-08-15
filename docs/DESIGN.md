@@ -70,7 +70,7 @@ v3
 - 活动 raw 文件超过 `rawArchiveMaxBytes` 时，最旧条目写入 `archive/raw-YYYY-MM.md`；搜索默认合并活动与归档条目。
 - 注入读取失败（文件不存在）返回空串，插件不影响会话正常组装。
 - 可观测性：`memory_stats` 输出全局/各作用域库存与 errorCount/lastError 遥测，`memory_history` 列出保留版本供回滚选择。
-- 安全：注入前对已知凭据形态与高熵 token 做 `redactSecrets`（默认开启）；`memory_add` 对明显凭据拒绝写入，除非显式 `allowSecret:true`。
+- 安全：注入前对已知凭据形态与高熵 token 做 `redactSecrets`（默认开启）；`memory_add` 对明显凭据拒绝写入，除非显式 `allowSecret:true`；`readOnlyScopes` 对指定作用域阻止全部写工具。
 
 ## 失败模式
 
