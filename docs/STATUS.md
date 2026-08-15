@@ -17,6 +17,18 @@
 | 安全 | 凭据拒绝、注入脱敏、readOnlyScopes 端到端通过 |
 | 部署脚本 | 临时目标 DryRun/sync/篡改修复/Backup 全部通过 |
 
+
+## 本轮复验（2026-08-15 19:05）
+
+- `npm test`：41/41 通过（388ms），与已验证矩阵一致。
+- DSH 插件链路（fake ctx + 真实 @deepseek-ai 依赖）：14 个 memory_* 工具全部注册；read/add/search/export/browse/stats/history 全链路通过。
+- 作用域：global / workspace(cwd) / project(git root) 端到端读写与隔离通过。
+- 自动管线：fake LLM 下 summarize→rollout→consolidate 通过；畸形合并输出被拒绝且旧摘要保持 v1，后续有效合并写入 v2。
+- 安全：凭据写入默认拒绝、allowSecret 显式放行、注入摘要脱敏、readOnlyScopes 阻断写操作均通过。
+- 安装副本：`verify-after-restart.ps1` 10/10 SHA-256 match；MCP smoke `server=dsh-memory version=0.2.0 tools=9`，add/search 通过。
+- 同步脚本 `-DryRun`：14/14 match，无需复制。
+- DSH 重启：本轮未执行（仍按约定待用户确认）。
+
 ## 部署状态
 
 - 文件同步：已完成（2026-08-15 18:17，`-Backup` 已创建）；10/10 文件 SHA-256 与仓库一致。
