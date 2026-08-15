@@ -42,6 +42,12 @@ export interface MemoryConfig {
   redactSecrets?: boolean
   /** Scope keys that are read-only for write tools ('global', exact ws/project keys, or '*' for all). */
   readOnlyScopes?: string[]
+  /** OpenAI-compatible embedding base URL used when `vector:true` (empty = local hashed vectors). */
+  embeddingBaseURL?: string
+  /** Bearer API key for the embedding endpoint. */
+  embeddingApiKey?: string
+  /** Embedding model id sent to the endpoint. */
+  embeddingModel?: string
   /** Seed the first summary from `$DSH_HOME/AGENTS.md` (default true). */
   seedFromAgentsMd?: boolean
 }

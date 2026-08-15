@@ -41,9 +41,11 @@ scope and old raw/summary files continue to work.
 - **Scoped memory**: `scopedMemory` + `scopeMaxBytes`; stable `ws-<hash>` and
   `project-<git-root>` stores; scoped tools, injection (global + workspace
   budget split), per-scope rollout/consolidation and version history.
-- **Retrieval**: typo/CJK bigram fuzzy fallback and local 256-dim hashed
-  embedding cosine retrieval (`vector:true`); optional neural provider remains
-  a future swap.
+- **Retrieval**: BM25 + typo/CJK bigram fuzzy fallback + vector retrieval
+  (`vector:true`). Local 256-dim hashed embeddings work out of the box; an
+  OpenAI-compatible `/embeddings` endpoint can be configured with
+  `embeddingBaseURL`/`embeddingApiKey`/`embeddingModel` and its candidates
+  merge with BM25.
 - **Interop**: Codex-compatible `memory_export`/`memory_import`; standalone
   stdio MCP server `bin/dsh-memory-mcp.mjs` with 9 tools.
 - **Lifecycle**: `importance` 0-3 metadata, exact duplicate prevention,

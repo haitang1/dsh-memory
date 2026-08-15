@@ -61,6 +61,7 @@ $DSH_HOME/memories/
 | `scopedMemory` | `false` | Enable per-workspace memory scopes. |
 | `redactSecrets` | `true` | Redact credential-looking text from injected summaries. |
 | `readOnlyScopes` | `[]` | Scope keys whose write tools are blocked (`global`, exact `ws-*`/`project-*` keys, or `*` for all). |
+| `embeddingBaseURL` / `embeddingApiKey` / `embeddingModel` | empty | OpenAI-compatible `/embeddings` endpoint for `vector:true`; empty uses local hashed vectors. |
 | `scopeMaxBytes` | `2400` | Injected byte budget for the workspace summary when scopedMemory is enabled. |
 | `seedFromAgentsMd` | `true` | Seed the first summary from `$DSH_HOME/AGENTS.md`. |
 

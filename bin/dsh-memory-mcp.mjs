@@ -37,6 +37,13 @@ const rootDir = process.env.DSH_MEMORY_DIR && process.env.DSH_MEMORY_DIR.trim().
   ? process.env.DSH_MEMORY_DIR.trim()
   : join(homedir(), '.dsh', 'memories')
 const redact = process.env.DSH_MEMORY_REDACT !== '0'
+const embedding = process.env.DSH_MEMORY_EMBEDDING_BASEURL && process.env.DSH_MEMORY_EMBEDDING_MODEL
+  ? {
+      baseURL: process.env.DSH_MEMORY_EMBEDDING_BASEURL.trim(),
+      apiKey: process.env.DSH_MEMORY_EMBEDDING_API_KEY || '',
+      model: process.env.DSH_MEMORY_EMBEDDING_MODEL.trim()
+    }
+  : undefined
 const root = new MemoryStore(rootDir)
 const stores = new Map()
 
@@ -231,8 +238,7 @@ async function callTool(name, args = {}) {
       const mode = String(args.mode || 'all').toLowerCase()
       if (mode !== 'all' && mode !== 'any') throw new Error("mode must be 'all' or 'any'")
       const tags = Array.isArray(args.tags) ? args.tags.filter((tag) => typeof tag === 'string').map((tag) => tag.trim()).filter(Boolean).slice(0, 16) : []
-      const entries = (await store.readRawEntries()).concat(await store.readArchivedEntries())
-      const hits = searchEntries(entries, query, { tags, mode, limit, fuzzy: args.fuzzy !== false, vector: args.vector === true })
+      const hits = await store.searchRaw(query, { tags, mode, limit, fuzzy: args.fuzzy !== false, vector: args.vector === true, embedding })
       return { scope: target.key, matches: hits.map(({ entry, score }) => ({ id: entry.id, ts: entry.ts, score, content: entry.content, tags: entry.tags })) }
     }
     case 'memory_update': {
