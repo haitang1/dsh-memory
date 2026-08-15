@@ -38,6 +38,7 @@ $files = @(
   'examples\mcp-config.json',
   'scripts\mcp-smoke.mjs',
   'scripts\verify-after-restart.ps1',
+  'scripts\restart-dsh.ps1',
   'scripts\sync-install.ps1'
 )
 

@@ -32,7 +32,10 @@ powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\sync-i
 # 2. 同步（自动备份当前安装副本，不碰记忆数据，不自动重启）
 powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\sync-install.ps1 -Backup
 
-# 3. 重启 DeepSeek Harness 后验证（自动校验文件 + 安装副本 MCP 冒烟）：
+# 3. 重启 DeepSeek Harness（会自动停掉 @deepseek-ai/dsh 相关 node 进程并重新拉起；请先 -WhatIf 预览）：
+powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\restart-dsh.ps1 -WhatIf
+powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\restart-dsh.ps1
+#    或手动重启后仅验证（自动校验文件 + 安装副本 MCP 冒烟）：
 powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\verify-after-restart.ps1
 #    - 手动确认 settings 命名空间出现 memory
 #    - 新工具（memory_browse/memory_history/memory_merge 等）可用
