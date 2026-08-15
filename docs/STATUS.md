@@ -18,12 +18,13 @@
 | 部署脚本 | 临时目标 DryRun/sync/篡改修复/Backup 全部通过 |
 
 
-## 本轮复验（2026-08-15 19:05）
+## 本轮复验（2026-08-15 19:10）
 
 - `npm test`：41/41 通过（388ms），与已验证矩阵一致。
-- DSH 插件链路（fake ctx + 真实 @deepseek-ai 依赖）：14 个 memory_* 工具全部注册；read/add/search/export/browse/stats/history 全链路通过。
+- DSH 插件链路（fake ctx + 真实 @deepseek-ai 依赖）：settings 注册（namespace=memory, applies=live）；14 个 memory_* 工具全部注册；read/add/update/delete/search/review/merge/export/import/stats/browse/history 全链路通过。
 - 作用域：global / workspace(cwd) / project(git root) 端到端读写与隔离通过。
 - 自动管线：fake LLM 下 summarize→rollout→consolidate 通过；畸形合并输出被拒绝且旧摘要保持 v1，后续有效合并写入 v2。
+- 回滚与同步：`memory_history`/`memory_rollback`（v1→v2→回滚 v1，历史双向归档）通过；`memory_sync` 的 up-to-date/imported/conflict 三分支通过。
 - 安全：凭据写入默认拒绝、allowSecret 显式放行、注入摘要脱敏、readOnlyScopes 阻断写操作均通过。
 - 安装副本：`verify-after-restart.ps1` 10/10 SHA-256 match；MCP smoke `server=dsh-memory version=0.2.0 tools=9`，add/search 通过。
 - 同步脚本 `-DryRun`：14/14 match，无需复制。
