@@ -17,7 +17,7 @@ $DSH_HOME/memories/
 ```
 
 - **Injection** — `systemPrompt.context` re-reads `memory_summary.md` at every prompt assembly, so a `memory_add` call surfaces in the very next model step.
-- **Tools** — `memory_read`, `memory_add`, `memory_update`, `memory_delete`, `memory_search`, `memory_review`, `memory_merge`, `memory_export`, `memory_import`, `memory_stats`, `memory_rollback`, `memory_sync` (see below).
+- **Tools** — `memory_read`, `memory_add`, `memory_update`, `memory_delete`, `memory_search`, `memory_review`, `memory_merge`, `memory_export`, `memory_import`, `memory_stats`, `memory_history`, `memory_rollback`, `memory_sync` (see below).
 - **Auto memory** — on each finished turn of a root agent, the new conversation text is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
@@ -72,7 +72,8 @@ $DSH_HOME/memories/
 | `memory_update { id, content?, tags?, importance?, scope? }` | Replace an entry's content/tags/importance in the selected scope. |
 | `memory_delete { id, scope? }` | Remove an entry from the selected scope. |
 | `memory_search { query, tags?, mode?, fuzzy?, limit?, scope? }` | BM25-ranked multi-keyword search in the selected scope (`global`/`workspace`/`project`) with optional tag filtering and zero-dependency typo/CJK fuzzy fallback. |
-| `memory_stats {}` | Report memory store health (sizes, versions, cursors, background work). |
+| `memory_stats {}` | Report store health: global + per-scope inventory, cursors, history, LLM counters, recent error telemetry. |
+| `memory_history { scope? }` | List retained summary versions (newest first) for `memory_rollback`. |
 | `memory_rollback { version }` | Restore a previously retained summary version. |
 | `memory_sync {}` | Re-import AGENTS.md when it changed; reports a conflict instead of overwriting manual summary edits. |
 | `memory_export { targetDir, scope?, overwrite? }` | Export a scope to Codex-compatible `memory_summary.md` + `raw_memories.md`. |

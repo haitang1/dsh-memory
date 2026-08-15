@@ -17,7 +17,7 @@ $DSH_HOME/memories/
 ```
 
 - **注入** —— 通过 `systemPrompt.context` 在每次提示词组装时重读 `memory_summary.md`，因此 `memory_add` 写入后下一步立即生效。
-- **工具** —— `memory_read` / `memory_add` / `memory_update` / `memory_delete` / `memory_search` / `memory_review` / `memory_merge` / `memory_export` / `memory_import` / `memory_stats` / `memory_rollback` / `memory_sync`（见下表）。
+- **工具** —— `memory_read` / `memory_add` / `memory_update` / `memory_delete` / `memory_search` / `memory_review` / `memory_merge` / `memory_export` / `memory_import` / `memory_stats` / `memory_history` / `memory_rollback` / `memory_sync`（见下表）。
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话工作区路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
@@ -72,7 +72,8 @@ $DSH_HOME/memories/
 | `memory_update { id, content?, tags?, importance?, scope? }` | 在指定作用域替换条目的内容/标签/重要性。 |
 | `memory_delete { id, scope? }` | 从指定作用域删除条目。 |
 | `memory_search { query, tags?, mode?, fuzzy?, limit?, scope? }` | 在指定作用域（`global`/`workspace`/`project`）做 BM25 多关键词相关性搜索，支持标签过滤与零依赖拼写/CJK 模糊兜底。 |
-| `memory_stats {}` | 报告记忆库健康度（大小、版本、游标、后台任务）。 |
+| `memory_stats {}` | 报告全局 + 各作用域库存、游标、历史、LLM 计数与最近错误。 |
+| `memory_history { scope? }` | 列出保留的摘要版本（新→旧）供 `memory_rollback` 使用。 |
 | `memory_rollback { version }` | 回滚到之前保留的摘要版本。 |
 | `memory_sync {}` | AGENTS.md 变化时重新导入；若摘要也被手改则报告冲突而不覆盖。 |
 | `memory_export { targetDir, scope?, overwrite? }` | 导出作用域为 Codex 兼容的 `memory_summary.md` + `raw_memories.md`。 |
