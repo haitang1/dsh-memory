@@ -56,6 +56,7 @@ $DSH_HOME/memories/
 | `summaryMaxTokens` | `600` | Max output tokens for turn summarization. |
 | `consolidateMaxTokens` | `1500` | Max output tokens for summary consolidation. |
 | `llmRetries` | `1` | Retries after a transient LLM failure. |
+| `maxActiveSummaries` | `4` | Maximum concurrent turn summarizations before new jobs are dropped. |
 | `seedFromAgentsMd` | `true` | Seed the first summary from `$DSH_HOME/AGENTS.md`. |
 
 ## Tools

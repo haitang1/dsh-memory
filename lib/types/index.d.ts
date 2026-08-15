@@ -32,6 +32,8 @@ export interface MemoryConfig {
   consolidateMaxTokens?: number
   /** Retries after a transient LLM failure (default 1). */
   llmRetries?: number
+  /** Maximum concurrent turn summarizations before new jobs are dropped (default 4). */
+  maxActiveSummaries?: number
   /** Seed the first summary from `$DSH_HOME/AGENTS.md` (default true). */
   seedFromAgentsMd?: boolean
 }

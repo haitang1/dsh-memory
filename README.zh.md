@@ -56,6 +56,7 @@ $DSH_HOME/memories/
 | `summaryMaxTokens` | `600` | 单轮摘要 LLM 的最大输出 token。 |
 | `consolidateMaxTokens` | `1500` | 摘要合并 LLM 的最大输出 token。 |
 | `llmRetries` | `1` | LLM 瞬时失败后的重试次数。 |
+| `maxActiveSummaries` | `4` | 同时进行的轮次摘要上限，超出后丢弃新任务。 |
 | `seedFromAgentsMd` | `true` | 是否用 `$DSH_HOME/AGENTS.md` 导入初始摘要。 |
 
 ## 工具

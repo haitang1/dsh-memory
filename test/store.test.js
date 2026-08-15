@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -297,4 +297,36 @@ test('raw entries archive beyond the byte threshold and stay searchable', async 
   assert.equal(fromArchive.length, 1)
   const activeOnly = await store.searchRaw('fact number 0', { mode: 'all', includeArchive: false })
   assert.equal(activeOnly.length, 0)
+})
+test('stale memory-dir lock is replaced by a new owner', async (t) => {
+  const store = await tempStore(t)
+  await store.ensure()
+  const lockPath = join(store.dir, '.memory.lock')
+  await writeFile(lockPath, 'stale holder\n', 'utf8')
+  const stale = new Date(Date.now() - 120000)
+  await utimes(lockPath, stale, stale)
+  const lock = await store.acquireLock()
+  assert.equal(lock.owner, true)
+  assert.equal(store.lockOwner, true)
+  const content = await readFile(lockPath, 'utf8')
+  assert.equal(content.includes('pid'), true)
+  await lock.release()
+  assert.equal(await store.fileBytes('.memory.lock'), 0)
+})
+
+test('active lock makes a second store read-only until released', async (t) => {
+  const first = await tempStore(t)
+  const second = new MemoryStore(first.dir)
+  const lock = await first.acquireLock()
+  assert.equal(lock.owner, true)
+  const blocked = await second.acquireLock()
+  assert.equal(blocked.owner, false)
+  assert.equal(second.writeBlocked, true)
+  await assert.rejects(() => second.writeAtomic('memory_summary.md', '# DSH memory\n'), /write blocked/)
+  await lock.release()
+  const retry = await second.acquireLock()
+  assert.equal(retry.owner, true)
+  assert.equal(second.writeBlocked, false)
+  await second.writeAtomic('memory_summary.md', '# DSH memory\n')
+  await retry.release()
 })

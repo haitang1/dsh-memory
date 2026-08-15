@@ -27,15 +27,16 @@
 - **P0-3 合并游标与输入预算**：已实现（`state.rolloutConsumed` 按文件/块推进；`consolidateMaxBytes` 默认 40000 控制输入总量）。
 - **P0-4 写入配额**：已实现（content ≤ 2000 字节，tags ≤ 16 且单个 ≤ 48 字符，add/update 同一校验路径）。
 - **P0-5 packaging**：已实现（移除 `dsh-llm`/`dsh-settings` 的 optional 声明，二者恢复为必需 peer）。
-- **P0-6 测试**：已实现（`npm test`，23 项 node:test 用例全绿；另完成 fake-ctx 工具链路与 fake-LLM 自动摘要/合并端到端验证）。
+- **P0-6 测试**：已实现（`npm test`，25 项 node:test 用例全绿；另完成 fake-ctx 工具链路与 fake-LLM 自动摘要/合并端到端验证）。
 - **P1-1 搜索升级**：已实现（raw 解析按 mtime+size 缓存；多关键词 `all`/`any` 模式；`tags` 过滤；全词/标签/新近度评分排序；命中窗口 snippet；`memory_search` 输出 `score`）。
 - **P1-3 `memory_stats` 工具**：已实现（摘要大小/版本/超预算、raw 数量与字节、rollout 文件数、journal 事件与游标、上次合并、后台任务状态）。
 - **P1-2 AGENTS.md 重同步**：已实现（state 记录源/种子摘要指纹；`memory_sync` 在源变化且摘要未被手改时重新导入并版本 +1，双方都变化时报告 conflict 不覆盖）。
+- **P1-5 并发与队列硬化**：已实现（`maxActiveSummaries` 默认 4，超限丢弃并告警；`lastSummarized` 超时/超 64 条自动清理；`.memory.lock` 带 60s stale 检测，其他活跃进程持锁时本实例只读）。
 - **P1-4 LLM 预算与成本**：已实现（`summaryMaxTokens`/`consolidateMaxTokens`/`llmRetries` 可配；瞬时失败重试一次；每次调用记录 provider/model/耗时/usage，`memory_stats` 输出 llmCalls/llmMs/llmFailures）。
 - **P1-7 raw 归档压缩**：已实现（活动 `raw_memories.md` 超过 `rawArchiveMaxBytes`（默认 200000）时，最旧条目写入 `archive/raw-YYYY-MM.md`；归档条目仍可被 `memory_search` 搜索，`memory_read`/`memory_stats` 报告归档数量与字节）。
 - **P1-6 摘要输出安全与回滚**：已实现（合并输出严格校验 `# DSH memory` + 独立 `vN` + `##` 节，畸形输出拒绝写入并保留旧版；行边界 + 代码围栏感知截断；每次合并前归档 `summary_history/`，`keepSummaryVersions` 默认 20；新增 `memory_rollback {version}` 工具）。
 - **额外修复**：`BlockAssembler.finish` 总是返回 `{kind:'stop'}`，原 `if (assembler.finish) throw` 会让每次自动摘要必然失败；已改为按 `dsh-session-title-llm` 模式解析 finish，并把摘要任务从 `store.chain` 中解耦（原写法存在自锁）。
-- **待办**：运行副本部署与 DSH 重启验证（需用户确认）；P1-5 与 P2 尚未开始。
+- **待办**：运行副本部署与 DSH 重启验证（需用户确认）；P2 尚未开始。
 
 
 ## 2. 实测现状（2026-08-15）
