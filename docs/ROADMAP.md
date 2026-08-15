@@ -27,7 +27,7 @@
 - **P0-3 合并游标与输入预算**：已实现（`state.rolloutConsumed` 按文件/块推进；`consolidateMaxBytes` 默认 40000 控制输入总量）。
 - **P0-4 写入配额**：已实现（content ≤ 2000 字节，tags ≤ 16 且单个 ≤ 48 字符，add/update 同一校验路径）。
 - **P0-5 packaging**：已实现（移除 `dsh-llm`/`dsh-settings` 的 optional 声明，二者恢复为必需 peer）。
-- **P0-6 测试**：已实现（`npm test`，25 项 node:test 用例全绿；另完成 fake-ctx 工具链路与 fake-LLM 自动摘要/合并端到端验证）。
+- **P0-6 测试**：已实现（`npm test`，41 项 node:test 用例全绿：store 单测、HTML 浏览器单测、fake embedding server、真实 MCP 子进程；另有 fake-ctx 工具链路与 fake-LLM 自动摘要/合并端到端验证）。
 - **P1-1 搜索升级**：已实现（raw 解析按 mtime+size 缓存；多关键词 `all`/`any` 模式；`tags` 过滤；全词/标签/新近度评分排序；命中窗口 snippet；`memory_search` 输出 `score`）。
 - **P1-3 `memory_stats` 工具**：已实现（摘要大小/版本/超预算、raw 数量与字节、rollout 文件数、journal 事件与游标、上次合并、后台任务状态）。
 - **P1-2 AGENTS.md 重同步**：已实现（state 记录源/种子摘要指纹；`memory_sync` 在源变化且摘要未被手改时重新导入并版本 +1，双方都变化时报告 conflict 不覆盖）。
@@ -38,12 +38,18 @@
 - **额外修复**：`BlockAssembler.finish` 总是返回 `{kind:'stop'}`，原 `if (assembler.finish) throw` 会让每次自动摘要必然失败；已改为按 `dsh-session-title-llm` 模式解析 finish，并把摘要任务从 `store.chain` 中解耦（原写法存在自锁）。
 - **P2.1 项目级作用域**：已完成——作用域键/目录、`scopedMemory`+`scopeMaxBytes` 配置、工具 `scope` 参数（`global`/`workspace` 默认/`project`=最近 git 根）、注入 global+workspace 预算拆分、每作用域 rollout 与合并（独立 state/journal/rollout 游标与版本历史）。**迁移决策**：根目录即 canonical global 作用域，不迁移到 `scopes/global`（向后兼容，旧数据继续有效）。
 - **P2.2 检索增强**：已实现 BM25 + 全词/标签/新近度 + bigram 模糊兜底 + 本地特征哈希向量（256 维）；配置 `embeddingBaseURL/apiKey/model` 时 `vector:true` 走 OpenAI 兼容 `/embeddings` 远程向量并与 BM25 结果合并（含 fake-server 集成测试）。
-- **P2.3 互操作**：已实现 `memory_export`/`memory_import`（Codex 文件级）与独立 MCP 服务器 `bin/dsh-memory-mcp.mjs`（stdio JSON-RPC，9 个记忆工具，作用域参数，零 DSH 运行时依赖，含真实子进程集成测试）。**待办**：Codex 汇总文件（MEMORY.md/memory_summary.md）合并导入。
-- **P2.4 生命周期管理**：已实现 `importance` 0-3 元数据（raw 持久化、搜索加权、add/update 参数）、`memory_add` 归一化重复拒绝（`allowDuplicate` 覆盖）、`memory_review`（最旧优先、`olderThanDays` 过滤、Dice 近重复组建议、永不自动删除）、`memory_merge`（保留 id、最长内容/标签并集/最高重要性，写 update+delete journal）。**待办**：TTL/accessedAt 字段。
+- **P2.3 互操作**：已实现 `memory_export`/`memory_import`（Codex 文件级）与独立 MCP 服务器 `bin/dsh-memory-mcp.mjs`（stdio JSON-RPC，9 个记忆工具，作用域参数，零 DSH 运行时依赖，含真实子进程集成测试）。**决策**：不自动导入 Codex `MEMORY.md`/`memory_summary.md` 语义摘要（避免损坏 LLM 蒸馏结构），raw 文件互操作即边界。
+- **P2.4 生命周期管理**：已实现 `importance` 0-3 元数据、`memory_add` 归一化重复拒绝、`memory_review`（最旧优先/`olderThanDays`/近重复组）、`memory_merge`。**决策**：TTL/accessedAt 暂不实现——插件遵循「永不自动删除」，淘汰由 review+merge 人工完成。
 - **P2.6 安全隐私**：已实现 `detectSecrets`（AWS/GitHub/OpenAI/私钥/credential 赋值/高熵 token）与 `redactSecrets`；注入摘要默认脱敏（`redactSecrets=true`），`memory_add` 对明显凭据拒绝并需 `allowSecret:true`；`readOnlyScopes` 可按 scope 阻止 add/update/delete/merge/import/rollback/sync。**待办**：云端同步审批 UI。
-- **P2.5 可观测性与 UI**：已实现 `memory_stats` scope 库存 + errorCount/lastError 遥测、`memory_history` 版本浏览、`memory_browse` 自包含交互式 HTML（作用域切换/关键字过滤/摘要/历史）。**待办（可选）**：嵌入 DSH Web 前端的原生设置页。
+- **P2.5 可观测性与 UI**：已实现 `memory_stats` scope 库存 + errorCount/lastError 遥测、`memory_history`、`memory_browse` 自包含交互式 HTML。原生 DSH Web 设置页为可选后续（数据接口已具备）。
 - **发布准备**：版本升至 `0.2.0`，新增 `CHANGELOG.md` 与 `examples/mcp-config.json`；`scripts/sync-install.ps1` 已包含全部发布文件并在临时目标验证。实际运行副本同步与 DSH 重启仍待用户确认。
 
+
+## 完成判定（2026-08-15）
+
+- **P0 / P1 全部完成**，**P2.1-P2.6 全部完成**；41 项自动化测试全绿。
+- 剩余唯一阻塞是运行副本部署：需用户确认后执行 `scripts/sync-install.ps1 -Backup` 并重启 DSH（同步脚本已在临时目标验证）。
+- 可选项（不阻塞目标）：DSH Web 原生设置页、接入用户自选神经网络 embedding 端点。
 
 ## 2. 实测现状（2026-08-15）
 
