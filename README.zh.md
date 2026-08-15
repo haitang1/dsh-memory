@@ -67,8 +67,8 @@ $DSH_HOME/memories/
 | 工具 | 用途 |
 | --- | --- |
 | `memory_read { scope? }` | 读取全局、工作区或项目（最近 git 根）记忆摘要。 |
-| `memory_add { content, tags?, scope?, allowDuplicate? }` | 在 `global`、`workspace` 或 `project` 作用域存储事实；默认拒绝空白/大小写归一后的重复事实。 |
-| `memory_update { id, content?, tags?, scope? }` | 在指定作用域替换条目的内容/标签。 |
+| `memory_add { content, tags?, scope?, importance?, allowDuplicate? }` | 在 `global`、`workspace` 或 `project` 作用域存储事实；`importance` 0-3 影响排序，默认拒绝空白/大小写归一后的重复事实。 |
+| `memory_update { id, content?, tags?, importance?, scope? }` | 在指定作用域替换条目的内容/标签/重要性。 |
 | `memory_delete { id, scope? }` | 从指定作用域删除条目。 |
 | `memory_search { query, tags?, mode?, fuzzy?, limit?, scope? }` | 在指定作用域（`global`/`workspace`/`project`）做 BM25 多关键词相关性搜索，支持标签过滤与零依赖拼写/CJK 模糊兜底。 |
 | `memory_stats {}` | 报告记忆库健康度（大小、版本、游标、后台任务）。 |
@@ -76,7 +76,7 @@ $DSH_HOME/memories/
 | `memory_sync {}` | AGENTS.md 变化时重新导入；若摘要也被手改则报告冲突而不覆盖。 |
 | `memory_export { targetDir, scope?, overwrite? }` | 导出作用域为 Codex 兼容的 `memory_summary.md` + `raw_memories.md`。 |
 | `memory_import { sourceDir, scope?, merge? }` | 从 Codex 兼容的 `raw_memories.md` 导入条目（追加或替换）。 |
-| `memory_review { scope?, limit?, olderThanDays? }` | 列出最旧条目供复核；绝不自动删除。 |
+| `memory_review { scope?, limit?, olderThanDays? }` | 列出最旧条目与近重复组供复核；绝不自动删除。 |
 
 ## 范围
 

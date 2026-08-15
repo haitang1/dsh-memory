@@ -78,7 +78,7 @@ v3
 - 插件停止/更新 → `ctx.effect` 清理 + 各注册的 disposer 全部释放，无全局残留。
 - `AGENTS.md` 重同步：state 记录源与种子摘要指纹，`memory_sync` 只在「源变化且摘要未被手改」时导入，双方都变化则报告冲突。
 - Codex 文件互操作：`memory_export`/`memory_import` 以 `memory_summary.md` + `raw_memories.md` 为边界，导出含归档 raw，导入重分配 id 并写 journal。
-- 生命周期：`memory_add` 对空白/大小写归一化内容查重（`allowDuplicate` 可覆盖）；`memory_review` 列出最旧条目供人工复核，默认不做自动删除/TTL。
+- 生命周期：`importance` 0-3 随 raw 条目持久化并参与搜索加权；`memory_add` 对空白/大小写归一化内容查重（`allowDuplicate` 可覆盖）；`memory_review` 列出最旧条目与 Dice 近重复组供人工复核，默认不做自动删除/TTL。
 
 ## 已知限制与扩展方向
 

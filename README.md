@@ -67,8 +67,8 @@ $DSH_HOME/memories/
 | Tool | Purpose |
 | --- | --- |
 | `memory_read { scope? }` | Read the global, workspace, or project (nearest git root) memory summary. |
-| `memory_add { content, tags?, scope?, allowDuplicate? }` | Store one durable fact in `global`, `workspace`, or `project` scope; whitespace/case duplicates are rejected by default. |
-| `memory_update { id, content?, tags?, scope? }` | Replace an entry's content/tags in the selected scope. |
+| `memory_add { content, tags?, scope?, importance?, allowDuplicate? }` | Store one durable fact in `global`, `workspace`, or `project` scope; `importance` 0-3 affects ranking, whitespace/case duplicates are rejected by default. |
+| `memory_update { id, content?, tags?, importance?, scope? }` | Replace an entry's content/tags/importance in the selected scope. |
 | `memory_delete { id, scope? }` | Remove an entry from the selected scope. |
 | `memory_search { query, tags?, mode?, fuzzy?, limit?, scope? }` | BM25-ranked multi-keyword search in the selected scope (`global`/`workspace`/`project`) with optional tag filtering and zero-dependency typo/CJK fuzzy fallback. |
 | `memory_stats {}` | Report memory store health (sizes, versions, cursors, background work). |
@@ -76,7 +76,7 @@ $DSH_HOME/memories/
 | `memory_sync {}` | Re-import AGENTS.md when it changed; reports a conflict instead of overwriting manual summary edits. |
 | `memory_export { targetDir, scope?, overwrite? }` | Export a scope to Codex-compatible `memory_summary.md` + `raw_memories.md`. |
 | `memory_import { sourceDir, scope?, merge? }` | Import Codex-compatible `raw_memories.md` into a scope (append or replace). |
-| `memory_review { scope?, limit?, olderThanDays? }` | List oldest entries for review; never deletes automatically. |
+| `memory_review { scope?, limit?, olderThanDays? }` | List oldest entries and near-duplicate groups for review; never deletes automatically. |
 
 ## Scope
 

@@ -6,7 +6,9 @@ import { join } from 'node:path'
 import {
   MemoryStore,
   bigramCoverage,
+  bigramDice,
   buildConsolidationInput,
+  findNearDuplicateGroups,
   contentFingerprint,
   finishError,
   hashText,
@@ -53,8 +55,8 @@ test('truncateUtf8 preserves UTF-8 character boundaries', () => {
 
 test('parseRaw and serializeRaw roundtrip', () => {
   const entries = [
-    { ts: '2026-08-15 08:00', id: 'mem-12345678', tags: ['project', 'preference'], content: '第一行\n第二行' },
-    { ts: '2026-08-15 09:00', id: 'mem-abcdef12', tags: [], content: 'no tags' }
+    { ts: '2026-08-15 08:00', id: 'mem-12345678', tags: ['project', 'preference'], importance: 1, content: '第一行\n第二行' },
+    { ts: '2026-08-15 09:00', id: 'mem-abcdef12', tags: [], importance: 1, content: 'no tags' }
   ]
   const serialized = serializeRaw(entries)
   assert.equal(serialized.startsWith('# Raw memories'), true)
@@ -392,4 +394,25 @@ test('findDuplicate searches active and archived entries', async (t) => {
   const duplicate = await store.findDuplicate('  duplicate   target  ')
   assert.equal(duplicate !== undefined, true)
   assert.equal(duplicate.id.startsWith('mem-'), true)
+})
+test('importance metadata roundtrips and boosts ranking', () => {
+  const entries = [{ ts: '2026-08-15 10:00', id: 'a', tags: [], importance: 3, content: 'shared fact' }]
+  const parsed = parseRaw(serializeRaw(entries))
+  assert.equal(parsed[0].importance, 3)
+  const now = Date.parse('2026-08-15T12:00:00Z')
+  const high = scoreEntry({ ts: '2026-08-15 10:00', content: 'shared fact', tags: [], importance: 3 }, ['fact'], now)
+  const low = scoreEntry({ ts: '2026-08-15 10:00', content: 'shared fact', tags: [], importance: 1 }, ['fact'], now)
+  assert.equal(high.score > low.score, true)
+})
+
+test('findNearDuplicateGroups groups similar but non-identical facts', () => {
+  const entries = [
+    { id: 'a', content: 'alpha project deadline extended to next week' },
+    { id: 'b', content: 'alpha project deadline was extended to next week' },
+    { id: 'c', content: 'completely unrelated beta note' }
+  ]
+  assert.equal(bigramDice('project', 'projects') >= 0.7, true)
+  const groups = findNearDuplicateGroups(entries, { threshold: 0.7 })
+  assert.equal(groups.length, 1)
+  assert.deepEqual(groups[0].ids, ['a', 'b'])
 })
