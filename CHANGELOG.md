@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.1 (2026-08-15)
+
+### Web settings page exposure
+
+- `scripts/patch-web-settings.ps1`: idempotently adds `memory` to the
+  `WEB_SETTINGS_NAMESPACES` allowlist in the deployed `dsh-host-apiproxy`
+  package so the Web configuration client serves the memory namespace
+  (the allowlist lives one level above plugins). Backs up the target,
+  re-checks syntax, and rolls back on failure.
+- `scripts/verify-after-restart.ps1` now also checks the allowlist and fails
+  when `memory` is missing (opt-out via `-SkipWebSettingsCheck`).
+
 ## 0.2.0 (2026-08-15)
 
 First feature-complete release after the v0.1.0 baseline. All changes are

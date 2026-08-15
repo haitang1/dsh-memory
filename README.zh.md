@@ -101,6 +101,15 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -DryRun
 powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 ```
 
+要在 DSH Web 设置页显示 `memory` 命名空间，部署需要把它加入 Web 配置客户端的白名单（该决定位于 `dsh-host-apiproxy` 包内，比插件高一层）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1 -WhatIf
+powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1
+```
+
+补丁幂等、自动备份、改后做语法检查。`scripts/verify-after-restart.ps1` 会同时校验部署的插件文件与这个白名单。
+
 ## 范围
 
 v1 记忆为全局共享（所有会话可见，与 Codex 一致）；项目级作用域记忆留作后续扩展。

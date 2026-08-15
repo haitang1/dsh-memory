@@ -14,7 +14,9 @@
 param(
   [string]$SourceDir = 'E:\git\github\dsh-Plugin',
   [string]$TargetDir = (Join-Path $env:USERPROFILE '.dsh\profiles\web\node_modules\@dsh-external\dsh-memory'),
-  [switch]$SkipMcpSmoke
+  [string]$ApiProxyFile = (Join-Path $env:USERPROFILE '.dsh\profiles\node_modules\@deepseek-ai\dsh-host-apiproxy\lib\index.js'),
+  [switch]$SkipMcpSmoke,
+  [switch]$SkipWebSettingsCheck
 )
 
 $ErrorActionPreference = 'Stop'
@@ -58,6 +60,19 @@ if ($failed.Count -gt 0) {
 
 Write-Host 'file verification passed.'
 Write-Host 'Manual checks after restart: settings namespace `memory`, 14 memory_* tools, memory_stats scopes/lastError.'
+
+if (-not $SkipWebSettingsCheck) {
+  $apiProxy = [System.IO.File]::ReadAllText($ApiProxyFile)
+  $anchor = $apiProxy.IndexOf('const WEB_SETTINGS_NAMESPACES = [')
+  $close = $apiProxy.IndexOf('];', $anchor)
+  $block = $apiProxy.Substring($anchor, $close - $anchor)
+  if ($block -match '"memory"') {
+    Write-Host 'web settings allowlist: memory exposed.'
+  } else {
+    Write-Host 'web settings allowlist: memory NOT exposed; run scripts\patch-web-settings.ps1 and restart DSH.'
+    exit 1
+  }
+}
 
 if (-not $SkipMcpSmoke) {
   $smoke = Join-Path $SourceDir 'scripts\mcp-smoke.mjs'

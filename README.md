@@ -101,6 +101,15 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -DryRun
 powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 ```
 
+To show the `memory` namespace on the DSH Web settings page, the deployment must expose it in the Web configuration client's allowlist (this is a decision made inside the `dsh-host-apiproxy` package, one level above plugins):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1 -WhatIf
+powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1
+```
+
+The patch is idempotent, backs up the target, and re-checks syntax. `scripts/verify-after-restart.ps1` checks both the deployed plugin files and this allowlist.
+
 ## Scope
 
 v1 memory is global and shared by all sessions (like Codex). Project-scoped memory is a planned extension.

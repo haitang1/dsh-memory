@@ -37,7 +37,7 @@
 - 重启前校验：已直接用安装副本启动 MCP server（version 0.2.0，9 tools，add/search 全链路通过）。
 - DSH 重启：已完成（2026-08-15 19:15，用户确认后执行；新 DSH 进程已拉起）。
 - 重启后验证：`verify-after-restart.ps1` 10/10 SHA-256 match；MCP smoke v0.2.0/9 tools 通过；`pluginInventory/list` 显示 `include:dsh-memory` enabled=true、fiberPhase=active；记忆目录 `.memory.lock`/`state.json` 于 19:15:59 刷新。
-- settings 说明：memory 命名空间已随插件注册；Web `settings.describe` 仅返回 host-apiproxy 白名单命名空间，因此不列出 memory（属 DSH Web 原生设置页可选后续），不影响插件运行。
+- settings 说明：memory 命名空间已随插件注册；Web `settings.describe` 仅返回 host-apiproxy 白名单命名空间。已新增 `scripts/patch-web-settings.ps1` 把 `memory` 加入 `WEB_SETTINGS_NAMESPACES` 白名单，并已应用于本部署（2026-08-15，备份 `index.js.bak-20260815`，补丁后 `node --check` 通过）。DSH 重启后 Web 设置页（设置 → 插件配置）应出现 memory 表单；`verify-after-restart.ps1` 已增加白名单检查。
 
 ## 部署命令记录
 
@@ -51,7 +51,13 @@ powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\sync-i
 # 3. 重启 DeepSeek Harness（已于 2026-08-15 19:15 执行；脚本会自动停掉 @deepseek-ai/dsh 相关 node 进程并重新拉起）：
 powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\restart-dsh.ps1 -WhatIf
 powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\restart-dsh.ps1
-#    或手动重启后仅验证（自动校验文件 + 安装副本 MCP 冒烟）：
+
+# 4. 让 Web 设置页显示 memory（host-apiproxy 白名单补丁，幂等、自动备份）：
+powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\patch-web-settings.ps1 -WhatIf
+powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\patch-web-settings.ps1
+#    再重启一次 DSH 后，设置 → 插件 → 插件配置 应出现 memory
+
+#   或手动重启后仅验证（自动校验文件 + 白名单 + 安装副本 MCP 冒烟）：
 powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\verify-after-restart.ps1
 #    - 手动确认 settings 命名空间出现 memory
 #    - 新工具（memory_browse/memory_history/memory_merge 等）可用
@@ -60,5 +66,5 @@ powershell -ExecutionPolicy Bypass -File E:\git\github\dsh-Plugin\scripts\verify
 
 ## 可选后续
 
-- DSH Web 原生设置页（当前有 `memory_browse` HTML 与完整 stats/history 数据接口）。
 - 用户自选神经网络 embedding 端点（`embeddingBaseURL/apiKey/model`；未配置时本地哈希向量）。
+- Web 设置页验证：白名单补丁已应用，DSH 重启后用 GUI 确认 memory 表单渲染（设置 → 插件 → 插件配置）。
