@@ -12,6 +12,10 @@ import {
   ensureVersionLine,
   journalToNetChanges,
   normalizeTags,
+  normalizeScopeArg,
+  scopeFromSession,
+  scopeKeyForCwd,
+  scopedStoreDir,
   parseRaw,
   parseRolloutBlocks,
   searchEntries,
@@ -329,4 +333,21 @@ test('active lock makes a second store read-only until released', async (t) => {
   assert.equal(second.writeBlocked, false)
   await second.writeAtomic('memory_summary.md', '# DSH memory\n')
   await retry.release()
+})
+test('scope helpers derive stable per-workspace keys', () => {
+  assert.equal(scopeKeyForCwd(''), 'global')
+  assert.equal(scopeKeyForCwd('  '), 'global')
+  const a1 = scopeKeyForCwd('C:/work/project-a')
+  const a2 = scopeKeyForCwd('c:\\work\\project-a\\')
+  const b = scopeKeyForCwd('D:/work/project-b')
+  if (process.platform === 'win32') assert.equal(a1, a2)
+  assert.notEqual(a1, b)
+  assert.equal(scopedStoreDir('/root', 'global'), '/root')
+  assert.equal(scopedStoreDir('/root', 'ws-abc').includes('scopes'), true)
+  assert.equal(normalizeScopeArg('workspace'), 'workspace')
+  assert.equal(normalizeScopeArg('PROJECT'), 'workspace')
+  assert.equal(normalizeScopeArg('global'), 'global')
+  assert.equal(normalizeScopeArg('other'), undefined)
+  assert.equal(scopeFromSession({ header: { cwd: 'C:/work/p' } }), scopeKeyForCwd('C:/work/p'))
+  assert.equal(scopeFromSession(undefined), 'global')
 })

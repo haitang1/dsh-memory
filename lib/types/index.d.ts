@@ -34,6 +34,10 @@ export interface MemoryConfig {
   llmRetries?: number
   /** Maximum concurrent turn summarizations before new jobs are dropped (default 4). */
   maxActiveSummaries?: number
+  /** Enable per-workspace memory scopes (default false). */
+  scopedMemory?: boolean
+  /** Injected byte budget for the workspace-scoped summary when scopedMemory is enabled (default 2400). */
+  scopeMaxBytes?: number
   /** Seed the first summary from `$DSH_HOME/AGENTS.md` (default true). */
   seedFromAgentsMd?: boolean
 }

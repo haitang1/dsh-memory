@@ -12,6 +12,7 @@ $DSH_HOME/memories/
 ├── journal.jsonl               变更日志（合并游标消费）
 ├── summary_history/<v>.<ts>.md 保留的摘要历史版本（可回滚）
 ├── archive/raw-YYYY-MM.md      超出字节预算后被归档的旧 raw 条目
+├── scopes/ws-<hash>/...         按工作区隔离的记忆库（开启 scopedMemory 后）
 └── state.json                  版本 + journal/rollout 游标进度
 ```
 
@@ -57,17 +58,19 @@ $DSH_HOME/memories/
 | `consolidateMaxTokens` | `1500` | 摘要合并 LLM 的最大输出 token。 |
 | `llmRetries` | `1` | LLM 瞬时失败后的重试次数。 |
 | `maxActiveSummaries` | `4` | 同时进行的轮次摘要上限，超出后丢弃新任务。 |
+| `scopedMemory` | `false` | 开启按工作区隔离的记忆作用域。 |
+| `scopeMaxBytes` | `2400` | scopedMemory 开启时工作区摘要的注入字节预算。 |
 | `seedFromAgentsMd` | `true` | 是否用 `$DSH_HOME/AGENTS.md` 导入初始摘要。 |
 
 ## 工具
 
 | 工具 | 用途 |
 | --- | --- |
-| `memory_read` | 读取当前全局记忆摘要。 |
-| `memory_add { content, tags? }` | 存储一条持久事实，返回条目 id。 |
-| `memory_update { id, content?, tags? }` | 替换条目的内容/标签。 |
-| `memory_delete { id }` | 删除条目。 |
-| `memory_search { query, tags?, mode?, limit? }` | 多关键词相关性搜索，支持标签过滤。 |
+| `memory_read { scope? }` | 读取全局或当前工作区记忆摘要。 |
+| `memory_add { content, tags?, scope? }` | 在 `global` 或 `workspace` 作用域存储事实，返回条目 id。 |
+| `memory_update { id, content?, tags?, scope? }` | 在指定作用域替换条目的内容/标签。 |
+| `memory_delete { id, scope? }` | 从指定作用域删除条目。 |
+| `memory_search { query, tags?, mode?, limit?, scope? }` | 在指定作用域做多关键词相关性搜索并支持标签过滤。 |
 | `memory_stats {}` | 报告记忆库健康度（大小、版本、游标、后台任务）。 |
 | `memory_rollback { version }` | 回滚到之前保留的摘要版本。 |
 | `memory_sync {}` | AGENTS.md 变化时重新导入；若摘要也被手改则报告冲突而不覆盖。 |

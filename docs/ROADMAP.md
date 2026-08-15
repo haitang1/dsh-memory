@@ -36,7 +36,8 @@
 - **P1-7 raw 归档压缩**：已实现（活动 `raw_memories.md` 超过 `rawArchiveMaxBytes`（默认 200000）时，最旧条目写入 `archive/raw-YYYY-MM.md`；归档条目仍可被 `memory_search` 搜索，`memory_read`/`memory_stats` 报告归档数量与字节）。
 - **P1-6 摘要输出安全与回滚**：已实现（合并输出严格校验 `# DSH memory` + 独立 `vN` + `##` 节，畸形输出拒绝写入并保留旧版；行边界 + 代码围栏感知截断；每次合并前归档 `summary_history/`，`keepSummaryVersions` 默认 20；新增 `memory_rollback {version}` 工具）。
 - **额外修复**：`BlockAssembler.finish` 总是返回 `{kind:'stop'}`，原 `if (assembler.finish) throw` 会让每次自动摘要必然失败；已改为按 `dsh-session-title-llm` 模式解析 finish，并把摘要任务从 `store.chain` 中解耦（原写法存在自锁）。
-- **待办**：运行副本部署与 DSH 重启验证（需用户确认）；P2 尚未开始。
+- **P2.1 项目级作用域（基础）**：已实现作用域键/目录、`scopedMemory`+`scopeMaxBytes` 配置、工具 `scope` 参数（默认当前会话 cwd，`global` 显式覆盖）、注入为全局+工作区摘要（预算拆分）。**待办**：每作用域自动摘要/合并、`project` 与 git-root 身份、旧数据迁移到 `scopes/global`。
+- **待办**：运行副本部署与 DSH 重启验证（需用户确认）；P2.2-P2.6 尚未开始。
 
 
 ## 2. 实测现状（2026-08-15）

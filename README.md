@@ -12,6 +12,7 @@ $DSH_HOME/memories/
 ├── journal.jsonl               mutation journal consumed by consolidation
 ├── summary_history/<v>.<ts>.md previous summary versions kept for rollback
 ├── archive/raw-YYYY-MM.md      oldest raw entries archived past the byte budget
+├── scopes/ws-<hash>/...         per-workspace stores (when scopedMemory is enabled)
 └── state.json                  version + journal/rollout cursor bookkeeping
 ```
 
@@ -57,17 +58,19 @@ $DSH_HOME/memories/
 | `consolidateMaxTokens` | `1500` | Max output tokens for summary consolidation. |
 | `llmRetries` | `1` | Retries after a transient LLM failure. |
 | `maxActiveSummaries` | `4` | Maximum concurrent turn summarizations before new jobs are dropped. |
+| `scopedMemory` | `false` | Enable per-workspace memory scopes. |
+| `scopeMaxBytes` | `2400` | Injected byte budget for the workspace summary when scopedMemory is enabled. |
 | `seedFromAgentsMd` | `true` | Seed the first summary from `$DSH_HOME/AGENTS.md`. |
 
 ## Tools
 
 | Tool | Purpose |
 | --- | --- |
-| `memory_read` | Read the current global memory summary. |
-| `memory_add { content, tags? }` | Store one durable fact; returns the entry id. |
-| `memory_update { id, content?, tags? }` | Replace an entry's content/tags. |
-| `memory_delete { id }` | Remove an entry. |
-| `memory_search { query, tags?, mode?, limit? }` | Ranked multi-keyword search with optional tag filtering. |
+| `memory_read { scope? }` | Read the global or current workspace memory summary. |
+| `memory_add { content, tags?, scope? }` | Store one durable fact in `global` or `workspace` scope; returns the entry id. |
+| `memory_update { id, content?, tags?, scope? }` | Replace an entry's content/tags in the selected scope. |
+| `memory_delete { id, scope? }` | Remove an entry from the selected scope. |
+| `memory_search { query, tags?, mode?, limit?, scope? }` | Ranked multi-keyword search in the selected scope with optional tag filtering. |
 | `memory_stats {}` | Report memory store health (sizes, versions, cursors, background work). |
 | `memory_rollback { version }` | Restore a previously retained summary version. |
 | `memory_sync {}` | Re-import AGENTS.md when it changed; reports a conflict instead of overwriting manual summary edits. |
