@@ -28,7 +28,8 @@
 - 安全：凭据写入默认拒绝、allowSecret 显式放行、注入摘要脱敏、readOnlyScopes 阻断写操作均通过。
 - 安装副本：`verify-after-restart.ps1` 10/10 SHA-256 match；MCP smoke `server=dsh-memory version=0.2.0 tools=9`，add/search 通过。
 - 同步脚本 `-DryRun`：14/14 match，无需复制。
-- DSH 重启：本轮未执行（仍按约定待用户确认）。
+- 结论：功能完成性复验通过（41 单测 + 14 工具全链路 + 自动管线 + 安全 + 部署副本），本测试目标完成。
+- DSH 重启：本轮未执行（仍按约定待用户确认，不阻塞测试目标）。
 
 ## 部署状态
 
