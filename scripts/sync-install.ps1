@@ -35,7 +35,10 @@ $files = @(
   'README.md',
   'README.zh.md',
   'CHANGELOG.md',
-  'examples\mcp-config.json'
+  'examples\mcp-config.json',
+  'scripts\mcp-smoke.mjs',
+  'scripts\verify-after-restart.ps1',
+  'scripts\sync-install.ps1'
 )
 
 Write-Host "source: $SourceDir"

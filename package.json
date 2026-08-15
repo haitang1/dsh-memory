@@ -35,6 +35,7 @@
     "lib",
     "bin",
     "examples",
+    "scripts",
     "cordis.patch.yml",
     "CHANGELOG.md",
     "README.md",
