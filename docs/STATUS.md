@@ -9,7 +9,7 @@
 
 | 层 | 结果 |
 | --- | --- |
-| `npm test`（store 单测 + browser 单测 + fake embedding server + MCP 子进程） | 41/41 |
+| `npm test`（store 单测 + browser 单测 + fake embedding server + MCP 子进程） | 41/41；核心依赖无关代码行覆盖 93.0%（store 93.07%、browser 92.31%） |
 | DSH 工具注册 | 14 个（read/add/update/delete/search/review/merge/export/import/stats/browse/history/rollback/sync） |
 | 独立 MCP | 9 个工具，stdio JSON-RPC 子进程集成通过 |
 | 作用域 | global / workspace(cwd) / project(最近 git 根) 工具与自动管线隔离验证通过 |
