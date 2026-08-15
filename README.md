@@ -9,7 +9,8 @@ $DSH_HOME/memories/
 ├── memory_summary.md           distilled, versioned, bounded memory — injected into every prompt
 ├── raw_memories.md             append-only dated entries written by the memory tools
 ├── rollout_summaries/<sid>.md  per-session turn summaries (auto)
-└── state.json                  consolidation bookkeeping
+├── journal.jsonl               mutation journal consumed by consolidation
+└── state.json                  version + journal/rollout cursor bookkeeping
 ```
 
 - **Injection** — `systemPrompt.context` re-reads `memory_summary.md` at every prompt assembly, so a `memory_add` call surfaces in the very next model step.
@@ -44,6 +45,7 @@ $DSH_HOME/memories/
 | --- | --- | --- |
 | `memoryDir` | `$DSH_HOME/memories` | Memory directory (empty = default). |
 | `maxBytes` | `8000` | Byte budget of the injected summary. |
+| `consolidateMaxBytes` | `40000` | Byte budget of the consolidation input sent to the merge model. |
 | `autoSummarize` | `true` | Distill finished turns into rollout summaries. |
 | `summarizeProvider` / `summarizeModel` | selected agent model | Model used for summarization. |
 | `consolidateEvery` | `3` | Rollout summaries written before re-consolidating the global summary. |

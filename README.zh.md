@@ -9,7 +9,8 @@ $DSH_HOME/memories/
 ├── memory_summary.md           蒸馏版、带版本号、有字节上限的全局记忆 —— 注入每个提示词
 ├── raw_memories.md             工具写入的追加式原始条目（带日期）
 ├── rollout_summaries/<sid>.md  每会话的轮次摘要（自动）
-└── state.json                  合并进度记录
+├── journal.jsonl               变更日志（合并游标消费）
+└── state.json                  版本 + journal/rollout 游标进度
 ```
 
 - **注入** —— 通过 `systemPrompt.context` 在每次提示词组装时重读 `memory_summary.md`，因此 `memory_add` 写入后下一步立即生效。
@@ -44,6 +45,7 @@ $DSH_HOME/memories/
 | --- | --- | --- |
 | `memoryDir` | `$DSH_HOME/memories` | 记忆目录（空 = 默认）。 |
 | `maxBytes` | `8000` | 注入摘要的字节上限。 |
+| `consolidateMaxBytes` | `40000` | 合并模型输入的总字节预算。 |
 | `autoSummarize` | `true` | 是否把结束的轮次蒸馏成 rollout 摘要。 |
 | `summarizeProvider` / `summarizeModel` | 当前选择的模型 | 摘要使用的模型。 |
 | `consolidateEvery` | `3` | 累计多少份 rollout 摘要后重新合并全局摘要。 |

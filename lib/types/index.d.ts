@@ -12,6 +12,8 @@ export interface MemoryConfig {
   memoryDir?: string
   /** Byte budget for the injected summary (default 8000). */
   maxBytes?: number
+  /** Byte budget for the consolidation input sent to the merge model (default 40000). */
+  consolidateMaxBytes?: number
   /** Distill turns into rollout summaries (default true). */
   autoSummarize?: boolean
   /** Provider used for summarization; defaults to the selected agent model. */

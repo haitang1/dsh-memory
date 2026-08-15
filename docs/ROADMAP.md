@@ -20,6 +20,18 @@
 - **非目标**：不做云端记忆服务；不静默把记忆发往第三方；不替代 Codex 记忆；不试图覆盖
   system/developer/直接用户指令（摘要中的免责声明保持不变）。
 
+## 实现状态（2026-08-15）
+
+- **P0-1 种子预算与版本归一**：已实现（`seedSummary` 最终文件按 `maxBytes` 截断，种子正文移除独立 `vN` 行；`summaryVersion` 仅在 header 后取版本；合并输出用 `ensureVersionLine` 归一）。
+- **P0-2 变更日志**：已实现（`journal.jsonl` 记录 add/update/delete，删除携带条目快照；合并改读 journal 净变更，工具变更后主动请求合并；旧 raw 条目启动时回填）。
+- **P0-3 合并游标与输入预算**：已实现（`state.rolloutConsumed` 按文件/块推进；`consolidateMaxBytes` 默认 40000 控制输入总量）。
+- **P0-4 写入配额**：已实现（content ≤ 2000 字节，tags ≤ 16 且单个 ≤ 48 字符，add/update 同一校验路径）。
+- **P0-5 packaging**：已实现（移除 `dsh-llm`/`dsh-settings` 的 optional 声明，二者恢复为必需 peer）。
+- **P0-6 测试**：已实现（`npm test`，12 项 node:test 用例全绿；另完成 fake-ctx 工具链路与 fake-LLM 自动摘要/合并端到端验证）。
+- **额外修复**：`BlockAssembler.finish` 总是返回 `{kind:'stop'}`，原 `if (assembler.finish) throw` 会让每次自动摘要必然失败；已改为按 `dsh-session-title-llm` 模式解析 finish，并把摘要任务从 `store.chain` 中解耦（原写法存在自锁）。
+- **待办**：运行副本部署与 DSH 重启验证（需用户确认）；P1/P2 尚未开始。
+
+
 ## 2. 实测现状（2026-08-15）
 
 | 编号 | 观察 | 证据 |
