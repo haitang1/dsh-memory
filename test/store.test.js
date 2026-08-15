@@ -7,6 +7,7 @@ import {
   MemoryStore,
   bigramCoverage,
   buildConsolidationInput,
+  contentFingerprint,
   finishError,
   hashText,
   byteLength,
@@ -378,4 +379,17 @@ test('searchEntries fuzzy mode fills missing terms, exact mode does not', () => 
   assert.equal(fuzzy[0].entry.id, 'a')
   const exact = searchEntries(entries, 'projct scope', { mode: 'all', now, fuzzy: false })
   assert.equal(exact.length, 0)
+})
+test('contentFingerprint normalizes whitespace and case', () => {
+  assert.equal(contentFingerprint('  Alpha  Beta '), contentFingerprint('alpha beta'))
+  assert.notEqual(contentFingerprint('alpha beta'), contentFingerprint('alpha gamma'))
+})
+
+test('findDuplicate searches active and archived entries', async (t) => {
+  const store = await tempStore(t)
+  store.rawArchiveMaxBytes = 1024
+  await store.appendRawEntry({ content: 'Duplicate Target', tags: [] })
+  const duplicate = await store.findDuplicate('  duplicate   target  ')
+  assert.equal(duplicate !== undefined, true)
+  assert.equal(duplicate.id.startsWith('mem-'), true)
 })

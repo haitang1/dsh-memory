@@ -39,7 +39,8 @@
 - **P2.1 项目级作用域**：已完成——作用域键/目录、`scopedMemory`+`scopeMaxBytes` 配置、工具 `scope` 参数（`global`/`workspace` 默认/`project`=最近 git 根）、注入 global+workspace 预算拆分、每作用域 rollout 与合并（独立 state/journal/rollout 游标与版本历史）。**迁移决策**：根目录即 canonical global 作用域，不迁移到 `scopes/global`（向后兼容，旧数据继续有效）。
 - **P2.2 检索增强（零依赖部分）**：已实现 BM25（idf/tf 归一）+ 全词/标签/新近度 + 字符 bigram 模糊兜底（`fuzzy` 默认开启，拼写容错与 CJK 子串覆盖）。**待办**：可选神经网络 embedding provider + 向量索引（需确认提供商）。
 - **P2.3 互操作（Codex 文件级部分）**：已实现 `memory_export`（作用域 → `memory_summary.md` + `raw_memories.md`，含归档条目，overwrite 保护）与 `memory_import`（追加或替换，新 id + 配额校验 + journal 记录）。**待办**：本地 MCP 服务器形态、Codex 汇总文件合并导入。
-- **待办**：运行副本部署与 DSH 重启验证（需用户确认）；P2.4-P2.6 尚未开始。
+- **P2.4 生命周期管理（部分）**：已实现 `memory_add` 归一化重复拒绝（`allowDuplicate` 覆盖）与 `memory_review`（最旧优先、`olderThanDays` 过滤、永不自动删除）。**待办**：importance/TTL/accessedAt 字段、近重复合并建议。
+- **待办**：运行副本部署与 DSH 重启验证（需用户确认）；P2.5-P2.6 尚未开始。
 
 
 ## 2. 实测现状（2026-08-15）
