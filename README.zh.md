@@ -58,6 +58,7 @@ $DSH_HOME/memories/
 | `rawArchiveMaxBytes` | `200000` | 活动 raw 文件字节预算；超出后最旧条目移入 `archive/`。 |
 | `autoSummarize` | `true` | 是否把结束的轮次蒸馏成 rollout 摘要。 |
 | `summarizeProvider` / `summarizeModel` | 当前选择的模型 | 摘要使用的模型。 |
+| `summarizeDebounceMs` | `300000` | 同一会话两次蒸馏的最小间隔（0 = 关闭防抖）。 |
 | `consolidateEvery` | `3` | 累计多少份 rollout 摘要后重新合并全局摘要。 |
 | `summaryMaxTokens` | `600` | 单轮摘要 LLM 的最大输出 token。 |
 | `consolidateMaxTokens` | `1500` | 摘要合并 LLM 的最大输出 token。 |
@@ -132,6 +133,13 @@ powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1
 ```
 
 补丁幂等、自动备份、改后做语法检查。`scripts/verify-after-restart.ps1` 会校验部署的插件文件、客户端 bundle 与这个白名单。本部署已端到端实测（2026-08-15）：编辑 → 保存 → "Settings saved and applied." → `settings.yaml` 的 `memory:` 段落盘（改动即时生效）。
+
+## 自动记忆与 auto-memory 技能
+
+记忆的持续更新由两层互补机制保证（都不需要手动调用工具）：
+
+1. **宿主管线（全自动）** —— 根代理每轮结束后自动把该轮对话蒸馏为 rollout 摘要（由 `summarizeDebounceMs` 防抖），并定期合并进注入的全局摘要。摘要模型按 `summarizeProvider`/`summarizeModel` → 当前选择的代理模型 → `agent-default-model` 设置命名空间的顺序解析；`memory_stats` 会报告 `summarizeSkipCounts` / `lastSummarizeSkip`，被跳过的蒸馏可观测。
+2. **auto-memory 技能（代理主动）** —— 插件注册一个运行时技能，指导代理主动识别关键信息（偏好、决策、约定、修复、事实），用 `memory_add` 写入（带 tags 与去重），在任务依赖历史时用 `memory_search` / `memory_read` 主动检索，并修正过时条目。重启后该技能会出现在每个会话的技能目录中。
 
 ## 范围
 

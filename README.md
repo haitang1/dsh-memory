@@ -58,6 +58,7 @@ The one-command path is `scripts/sync-install.ps1` (see [Deploy / update](#deplo
 | `rawArchiveMaxBytes` | `200000` | Active raw file byte budget; oldest entries move to `archive/` beyond it. |
 | `autoSummarize` | `true` | Distill finished turns into rollout summaries. |
 | `summarizeProvider` / `summarizeModel` | selected agent model | Model used for summarization. |
+| `summarizeDebounceMs` | `300000` | Minimum interval between summarizations of the same session (0 disables the debounce). |
 | `consolidateEvery` | `3` | Rollout summaries written before re-consolidating the global summary. |
 | `summaryMaxTokens` | `600` | Max output tokens for turn summarization. |
 | `consolidateMaxTokens` | `1500` | Max output tokens for summary consolidation. |
@@ -132,6 +133,25 @@ powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1
 ```
 
 The patch is idempotent, backs up the target, and re-checks syntax. `scripts/verify-after-restart.ps1` checks the deployed plugin files, the client bundle, and this allowlist. The card was verified end-to-end on this deployment (2026-08-15): edit → save → "Settings saved and applied." → the `memory:` section persisted in `settings.yaml` (changes apply live).
+
+## Automatic memory & the auto-memory skill
+
+Two complementary layers keep memory current without manual tool calls:
+
+1. **Host pipeline (automatic)** — every finished turn of a root agent is
+   distilled into a rollout summary (debounced via `summarizeDebounceMs`),
+   and summaries are periodically re-consolidated into the injected global
+   summary. The summarization model resolves through
+   `summarizeProvider/summarizeModel`, then the selected agent model, then
+   the `agent-default-model` settings namespace. `memory_stats` reports
+   `summarizeSkipCounts` / `lastSummarizeSkip` so skipped distillations are
+   observable.
+2. **auto-memory skill (agent-driven)** — the plugin registers a runtime
+   skill that instructs agents to proactively recognize key facts
+   (preferences, decisions, conventions, fixes, facts), write them with
+   `memory_add` (tags + dedup), query memory with `memory_search` /
+   `memory_read` when a task depends on history, and correct stale entries.
+   The skill appears in every session's skill catalog after restart.
 
 ## Scope
 

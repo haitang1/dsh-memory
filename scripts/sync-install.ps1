@@ -31,6 +31,7 @@ $files = @(
   'lib\browser.js',
   'lib\client.js',
   'lib\web.js',
+  'lib\automation.js',
   'lib\types\index.d.ts',
   'lib\types\client.d.ts',
   'bin\dsh-memory-mcp.mjs',

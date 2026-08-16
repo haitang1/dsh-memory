@@ -74,7 +74,7 @@ v3
 
 ## 失败模式
 
-- 模型不可用 / 未配置 → `resolveRoute()` 返回 undefined，自动摘要跳过并告警一次；工具与注入不受影响；
+- 模型不可用 / 未配置 → `resolveRoute()`（配置 → `agentDefaultModel` → `agent-default-model` 设置命名空间回退链，见 `lib/automation.js`）返回 undefined，自动摘要跳过并告警一次，`memory_stats` 通过 `summarizeSkipCounts`/`lastSummarizeSkip` 记录每次跳过的原因；工具与注入不受影响；
 - LLM 超时/瞬时失败 → 每调用 `llmRetries`（默认 1）次重试，单次 60s 超时；结构化日志记录 provider/model/耗时/usage，`memory_stats` 汇总调用数与失败数；
 - 摘要/合并的 LLM 调用本身不触发记忆写入（非代理轮次，无递归风险）；
 - 插件停止/更新 → `ctx.effect` 清理 + 各注册的 disposer 全部释放，无全局残留。
@@ -87,5 +87,6 @@ v3
 - 作用域：`scopedMemory` 开启后按 `session.header.cwd` 派生 `ws-<hash>` 工作区库（`scopes/` 目录）；`scope:'project'` 取会话 cwd 的最近 `.git` 根派生 `project-<hash>`；工具、注入（global + workspace 预算拆分）与每作用域 rollout/合并均按路由作用域工作。根目录是 canonical global 作用域，旧数据无需迁移。
 - 搜索为 BM25 + 全词/标签/新近度加权，字符 bigram 为缺失词提供模糊兜底；`vector:true` 时叠加本地特征哈希向量余弦检索（零依赖，256 维，阈值 0.3）。远程神经网络 embedding 端点已支持：配置 `embeddingBaseURL/apiKey/model` 时走 OpenAI 兼容 `/embeddings` 并与 BM25 结果合并，未配置则回退本地哈希向量。
 - 摘要去重依赖 LLM 合并提示；条目级去重（按内容哈希）留作 v2。
+- 自动记忆：宿主自动蒸馏（`agent/turn-stopping`，`summarizeDebounceMs` 防抖）+ `auto-memory` 运行时技能（指导代理主动识别关键信息并写入、任务依赖历史时主动检索、修正过时条目；定义见 `lib/automation.js`），两者互补。
 
 详细的分级优化清单、验收标准与里程碑见 [`ROADMAP.md`](ROADMAP.md)。

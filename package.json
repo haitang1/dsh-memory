@@ -67,6 +67,6 @@
   },
   "license": "MIT",
   "scripts": {
-    "test": "node --test test/store.test.js test/browser.test.js test/web-settings.test.js test/embedding.integration.test.js test/mcp.integration.test.js"
+    "test": "node --test test/store.test.js test/browser.test.js test/web-settings.test.js test/automation.test.js test/embedding.integration.test.js test/mcp.integration.test.js"
   }
 }

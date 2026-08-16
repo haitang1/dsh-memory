@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.2.2 (2026-08-16)
+
+### Real automatic memory
+
+- `lib/automation.js`: new `auto-memory` runtime skill telling agents to
+  proactively recognize key facts (preferences, decisions, conventions,
+  fixes, facts), write them via `memory_add` with tags and dedup, query
+  memory via `memory_search`/`memory_read` when a task depends on history,
+  and correct stale entries via `memory_update`/`memory_delete`.
+- `resolveSummarizeRoute` fallback chain for the auto-summarization model:
+  explicit `summarizeProvider/summarizeModel` → `agentDefaultModel`
+  service → the `agent-default-model` settings namespace directly (fixes
+  silent skipping when the agent-scoped service is unavailable from a
+  host-level context).
+- Diagnostics: `memory_stats` now reports `summarizeSkipCounts` and
+  `lastSummarizeSkip` (reason/time/session) for every skipped
+  summarization gate (disabled/subagent/debounced/too-short/no-lock/
+  already-running/queue-full/no-route), so the pipeline's behavior is
+  observable.
+- New `summarizeDebounceMs` config (default 300000, 0 disables the
+  debounce) controlling how often a session's turns are distilled.
+- Tests: `test/automation.test.js` (6 cases) covering the route fallback
+  chain and the skill definition; suite is 55/55.
+
 ## 0.2.1 (2026-08-15)
 
 ### Web settings page card
