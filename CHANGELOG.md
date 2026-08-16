@@ -16,6 +16,14 @@
   composition `base` at boot and ignored the user document (e.g.
   `summarizeDebounceMs: 0`) until the first live edit. The registration
   effect now applies `settingsScope.get()` once before watching.
+- Internal distill/consolidate LLM calls now pass `reasoningEffort: 'off'`:
+  the deployment's default Max reasoning consumed the output budget, so
+  every run failed with "LLM output reached max tokens" even with a raised
+  cap. Memory curation is extraction, not reasoning — no chain-of-thought
+  needed. Models without reasoning control fall back automatically
+  (UNSUPPORTED_REASONING_EFFORT → plain retry).
+- Default token caps raised for headroom: `summaryMaxTokens` 600 → 1500,
+  `consolidateMaxTokens` 1500 → 3000.
 - Tests: `extractMessageText` regression cases (user/assistant nesting,
   tool-call blocks, malformed data); suite is 59/59.
 
