@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **Auto memory** — on each finished turn of a root agent, the new conversation text is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.2.1** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.2.4** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
@@ -60,8 +60,8 @@ The one-command path is `scripts/sync-install.ps1` (see [Deploy / update](#deplo
 | `summarizeProvider` / `summarizeModel` | selected agent model | Model used for summarization. |
 | `summarizeDebounceMs` | `300000` | Minimum interval between summarizations of the same session (0 disables the debounce). |
 | `consolidateEvery` | `3` | Rollout summaries written before re-consolidating the global summary. |
-| `summaryMaxTokens` | `600` | Max output tokens for turn summarization. |
-| `consolidateMaxTokens` | `1500` | Max output tokens for summary consolidation. |
+| `summaryMaxTokens` | `1500` | Max output tokens for turn summarization. |
+| `consolidateMaxTokens` | `3000` | Max output tokens for summary consolidation. |
 | `llmRetries` | `1` | Retries after a transient LLM failure. |
 | `maxActiveSummaries` | `4` | Maximum concurrent turn summarizations before new jobs are dropped. |
 | `scopedMemory` | `false` | Enable per-workspace memory scopes. |
@@ -145,7 +145,12 @@ Two complementary layers keep memory current without manual tool calls:
    `summarizeProvider/summarizeModel`, then the selected agent model, then
    the `agent-default-model` settings namespace. `memory_stats` reports
    `summarizeSkipCounts` / `lastSummarizeSkip` so skipped distillations are
-   observable.
+   observable. Since 0.2.3 the distillation reads both `user/message` and
+   `assistant/message` text (assistant replies were previously dropped),
+   user settings apply at boot (not only after the first live edit), and
+   the internal distill/consolidate LLM calls run with reasoning off so
+   they cannot hit the output-token cap. End-to-end verified 2026-08-16:
+   turn → rollout file → consolidation bumped the global summary v1 → v2.
 2. **auto-memory skill (agent-driven)** — the plugin registers a runtime
    skill that instructs agents to proactively recognize key facts
    (preferences, decisions, conventions, fixes, facts), write them with
@@ -165,9 +170,10 @@ Tools accept a `scope` argument (`global` | `workspace` | `project`); the projec
 
 ## Development & testing
 
-`npm test` runs 49 tests (node:test):
+`npm test` runs 59 tests (node:test):
 
 - `test/store.test.js` — store semantics, journal, history, archiving, scopes;
+- `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain, and `extractMessageText` (user/assistant event shapes);
 - `test/browser.test.js` — the interactive HTML browser snapshot rendering;
 - `test/web-settings.test.js` — the settings endpoint lifecycle (GET/POST, 403/409, body limits) plus a VM-sandbox load of the client bundle asserting the `settings.plugin.item` card registration;
 - `test/embedding.integration.test.js` — fake `/embeddings` server + local hashed vectors;

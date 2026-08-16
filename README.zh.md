@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.2.1** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.2.4** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -60,8 +60,8 @@ $DSH_HOME/memories/
 | `summarizeProvider` / `summarizeModel` | 当前选择的模型 | 摘要使用的模型。 |
 | `summarizeDebounceMs` | `300000` | 同一会话两次蒸馏的最小间隔（0 = 关闭防抖）。 |
 | `consolidateEvery` | `3` | 累计多少份 rollout 摘要后重新合并全局摘要。 |
-| `summaryMaxTokens` | `600` | 单轮摘要 LLM 的最大输出 token。 |
-| `consolidateMaxTokens` | `1500` | 摘要合并 LLM 的最大输出 token。 |
+| `summaryMaxTokens` | `1500` | 单轮摘要 LLM 的最大输出 token。 |
+| `consolidateMaxTokens` | `3000` | 摘要合并 LLM 的最大输出 token。 |
 | `llmRetries` | `1` | LLM 瞬时失败后的重试次数。 |
 | `maxActiveSummaries` | `4` | 同时进行的轮次摘要上限，超出后丢弃新任务。 |
 | `scopedMemory` | `false` | 开启按工作区隔离的记忆作用域。 |
@@ -138,7 +138,7 @@ powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1
 
 记忆的持续更新由两层互补机制保证（都不需要手动调用工具）：
 
-1. **宿主管线（全自动）** —— 根代理每轮结束后自动把该轮对话蒸馏为 rollout 摘要（由 `summarizeDebounceMs` 防抖），并定期合并进注入的全局摘要。摘要模型按 `summarizeProvider`/`summarizeModel` → 当前选择的代理模型 → `agent-default-model` 设置命名空间的顺序解析；`memory_stats` 会报告 `summarizeSkipCounts` / `lastSummarizeSkip`，被跳过的蒸馏可观测。
+1. **宿主管线（全自动）** —— 根代理每轮结束后自动把该轮对话蒸馏为 rollout 摘要（由 `summarizeDebounceMs` 防抖），并定期合并进注入的全局摘要。摘要模型按 `summarizeProvider`/`summarizeModel` → 当前选择的代理模型 → `agent-default-model` 设置命名空间的顺序解析；`memory_stats` 会报告 `summarizeSkipCounts` / `lastSummarizeSkip`，被跳过的蒸馏可观测。自 0.2.3 起蒸馏同时读取 `user/message` 与 `assistant/message` 文本（此前助手回复被静默丢弃）、用户设置启动即生效（而非首次在线编辑后才生效）、内部蒸馏/合并调用关闭推理（避免撞输出上限）。已于 2026-08-16 端到端实测：回合 → rollout 文件 → 合并，全局摘要 v1 → v2。
 2. **auto-memory 技能（代理主动）** —— 插件注册一个运行时技能，指导代理主动识别关键信息（偏好、决策、约定、修复、事实），用 `memory_add` 写入（带 tags 与去重），在任务依赖历史时用 `memory_search` / `memory_read` 主动检索，并修正过时条目。重启后该技能会出现在每个会话的技能目录中。
 
 ## 范围
@@ -153,9 +153,10 @@ powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1
 
 ## 开发与测试
 
-`npm test` 运行 49 项测试（node:test）：
+`npm test` 运行 59 项测试（node:test）：
 
 - `test/store.test.js` —— 存储语义、journal、历史、归档、作用域；
+- `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链、`extractMessageText`（user/assistant 事件结构）；
 - `test/browser.test.js` —— 交互式 HTML 浏览器的快照渲染；
 - `test/web-settings.test.js` —— 设置端点生命周期（GET/POST、403/409、体积限制），以及 VM 沙箱加载客户端 bundle 断言 `settings.plugin.item` 卡片注册；
 - `test/embedding.integration.test.js` —— fake `/embeddings` 服务 + 本地哈希向量；
