@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { AUTO_MEMORY_SKILL, resolveSummarizeRoute } from '../lib/automation.js'
 
 function resolved(overrides = {}) {
@@ -61,4 +62,17 @@ test('AUTO_MEMORY_SKILL advertises proactive memory behavior', () => {
   assert.ok(content.includes('何时写入'))
   assert.ok(content.includes('何时读取'))
   assert.ok(content.includes('tags'))
+})
+
+test('server entry retains the runtime definitions required by apply', async () => {
+  const source = await readFile(new URL('../lib/index.js', import.meta.url), 'utf8')
+
+  assert.match(source, /export const Config = z\.object\(/)
+  assert.match(source, /summarizeDebounceMs: z\.number\(\)\.step\(1\)\.min\(0\)\.default\(DEFAULT_SUMMARIZE_DEBOUNCE_MS\)/)
+  for (const name of ['resolveConfig', 'dshHome', 'isRootSession', 'extractTurnText', 'journalChangeText']) {
+    assert.match(source, new RegExp(`function ${name}\\b`), `${name} must remain defined in the server entry`)
+  }
+  for (const name of ['MIN_TURN_BYTES', 'MAX_TURN_INPUT_BYTES', 'DEFAULT_SUMMARIZE_DEBOUNCE_MS', 'CONSOLIDATE_INTERVAL_MS', 'LLM_TIMEOUT_MS', 'MAX_ROLLOUT_FILES']) {
+    assert.match(source, new RegExp(`const ${name}\\b`), `${name} must remain defined in the server entry`)
+  }
 })

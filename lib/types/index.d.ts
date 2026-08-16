@@ -24,6 +24,8 @@ export interface MemoryConfig {
   summarizeProvider?: string
   /** Model used for summarization; defaults to the selected agent model. */
   summarizeModel?: string
+  /** Minimum interval between summaries for one session in milliseconds (default 300000; 0 disables debounce). */
+  summarizeDebounceMs?: number
   /** Rollout summaries written before re-consolidating the global summary (default 3). */
   consolidateEvery?: number
   /** Maximum output tokens for turn summarization (default 600). */

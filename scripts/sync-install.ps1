@@ -75,6 +75,14 @@ if ($DryRun) {
   foreach ($relative in $files) {
     $source = Join-Path $SourceDir $relative
     $target = Join-Path $TargetDir $relative
+    if (Test-Path -LiteralPath $target -PathType Leaf) {
+      $sourceHash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
+      $targetHash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash
+      if ($sourceHash -eq $targetHash) {
+        Write-Host ("{0,-28} unchanged; copy skipped" -f $relative)
+        continue
+      }
+    }
     $parent = Split-Path -Parent $target
     New-Item -ItemType Directory -Path $parent -Force | Out-Null
     Copy-Item -LiteralPath $source -Destination $target -Force
