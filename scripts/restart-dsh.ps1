@@ -17,6 +17,7 @@ param(
   [string]$NodeExe = 'C:\Program Files\nodejs\node.exe',
   [string]$NpxCli = 'C:\Program Files\nodejs\node_modules\npm\bin\npx-cli.js',
   [switch]$SkipVerify,
+  [switch]$SkipSync,
   [switch]$WhatIf
 )
 
@@ -37,11 +38,24 @@ if ($targets.Count -eq 0) {
 
 if ($WhatIf) {
   Write-Host "WhatIf: would start: $NodeExe `"$NpxCli`" @deepseek-ai/dsh web"
+  if (-not $SkipSync) { Write-Host 'WhatIf: would run sync-install.ps1 -Backup before starting' }
   if (-not $SkipVerify) { Write-Host "WhatIf: would run verify-after-restart.ps1" }
   exit 0
 }
 
 Start-Sleep -Seconds 3
+
+# Sync the installed plugin copy AFTER stopping (the running process locks the
+# module files) and BEFORE starting, so the reloaded process runs the latest
+# code. This avoids the stale-load loop of restarting before a successful sync.
+if (-not $SkipSync) {
+  & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $SourceDir 'scripts\sync-install.ps1') -Backup -SourceDir $SourceDir
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host 'sync failed; aborting restart.'
+    exit 1
+  }
+}
+
 Start-Process -FilePath $NodeExe -ArgumentList @("`"$NpxCli`"", '@deepseek-ai/dsh', 'web') -WorkingDirectory $SourceDir
 Write-Host 'started @deepseek-ai/dsh web; waiting 20 seconds...'
 Start-Sleep -Seconds 20
