@@ -150,6 +150,12 @@ test('client bundle registers the settings.plugin.item card', () => {
   assert.match(source, /_dsh\/memory\/settings/)
   assert.match(source, /locale\.register\(NS, \{ en: en, zh: zh \}\)/)
   assert.match(source, /var zh = \{/)
+  // Aligns with the built-in plugin card structure.
+  assert.match(source, /dmm-headText/)
+  assert.match(source, /dmm-pending/)
+  assert.match(source, /dmm-footer/)
+  assert.match(source, /IconChevronDownOutline14/)
+  assert.match(source, /dmm-chevOpen/)
 })
 
 test('client bundle loads in a browser-like sandbox, localizes, and registers the card', () => {
@@ -163,6 +169,11 @@ test('client bundle loads in a browser-like sandbox, localizes, and registers th
   }
   const requireMock = (spec) => {
     if (spec === 'react') return fakeReact
+    if (spec === '@deepseek-ai/dsh-client-ui-primitives') {
+      return {
+        IconChevronDownOutline14: (props) => ({ type: 'svg', props: props || {} })
+      }
+    }
     throw new Error(`unexpected require: ${spec}`)
   }
 
