@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { AUTO_MEMORY_SKILL, resolveSummarizeRoute } from '../lib/automation.js'
+import { AUTO_MEMORY_SKILL, extractMessageText, resolveSummarizeRoute } from '../lib/automation.js'
 
 function resolved(overrides = {}) {
   return {
@@ -46,6 +46,33 @@ test('resolveSummarizeRoute falls back to the agent-default-model settings names
 test('resolveSummarizeRoute returns undefined when no route is available', () => {
   assert.equal(resolveSummarizeRoute(resolved(), { agentDefaultModel: undefined, settings: undefined }), undefined)
   assert.equal(resolveSummarizeRoute(resolved(), { agentDefaultModel: { currentSelection: () => undefined }, settings: { get: () => undefined } }), undefined)
+})
+
+test('extractMessageText reads user/message data.content directly', () => {
+  const data = { id: 'u1', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '你好' }, { type: 'text', text: '世界' }] }
+  assert.equal(extractMessageText(data), '你好\n世界\n')
+})
+
+test('extractMessageText unwraps assistant/message data.message nesting', () => {
+  // Regression: assistant/message stores the message record at data.message;
+  // reading data.content alone silently dropped every assistant reply.
+  const data = {
+    turn: 1,
+    step: 2,
+    message: { id: 'a1', role: 'assistant', source: { kind: 'model', provider: 'p', model: 'm' }, content: [{ type: 'text', text: '回复内容' }] }
+  }
+  assert.equal(extractMessageText(data), '回复内容\n')
+})
+
+test('extractMessageText ignores tool-call blocks and malformed data', () => {
+  const data = {
+    message: { id: 'a2', role: 'assistant', source: { kind: 'model', provider: 'p', model: 'm' }, content: [{ type: 'tool-call', id: 'c1' }, { type: 'text', text: 'only text' }] }
+  }
+  assert.equal(extractMessageText(data), 'only text\n')
+  assert.equal(extractMessageText(undefined), '')
+  assert.equal(extractMessageText(null), '')
+  assert.equal(extractMessageText('not-an-object'), '')
+  assert.equal(extractMessageText({ content: 'not-an-array' }), '')
 })
 
 test('AUTO_MEMORY_SKILL advertises proactive memory behavior', () => {

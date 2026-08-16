@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.3 (2026-08-16)
+
+### Auto-summarization pipeline fixes
+
+- `extractTurnText` silently dropped every assistant reply: DSH stores
+  `assistant/message` events with the message record nested at
+  `event.data.message`, while `user/message` events carry it directly at
+  `event.data`. The old `event.data.content` read produced near-empty turn
+  text, so the `too-short` gate (200 bytes) skipped real conversations and
+  no global rollout was ever written. New `extractMessageText` helper
+  unwraps both shapes (moved to `lib/automation.js` so it is unit-tested).
+- Settings overrides now survive restarts: the settings scope only notifies
+  watchers on change, so the plugin re-seeded `resolved` from the
+  composition `base` at boot and ignored the user document (e.g.
+  `summarizeDebounceMs: 0`) until the first live edit. The registration
+  effect now applies `settingsScope.get()` once before watching.
+- Tests: `extractMessageText` regression cases (user/assistant nesting,
+  tool-call blocks, malformed data); suite is 59/59.
+
 ## 0.2.2 (2026-08-16)
 
 ### Real automatic memory
