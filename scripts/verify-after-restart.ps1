@@ -68,13 +68,21 @@ Write-Host 'Manual checks after restart: settings namespace `memory`, 14 memory_
 if (-not $SkipWebSettingsCheck) {
   $apiProxy = [System.IO.File]::ReadAllText($ApiProxyFile)
   $anchor = $apiProxy.IndexOf('const WEB_SETTINGS_NAMESPACES = [')
-  $close = $apiProxy.IndexOf('];', $anchor)
-  $block = $apiProxy.Substring($anchor, $close - $anchor)
-  if ($block -match '"memory"') {
-    Write-Host 'web settings allowlist: memory exposed.'
+  if ($anchor -lt 0) {
+    # DSH 0.1.0-rc.7 removed the hard-coded allowlist: the Web settings API
+    # serves every registered settings namespace, and the plugin card renders
+    # by the namespace key ('memory'). The old patch-web-settings.ps1 no
+    # longer applies.
+    Write-Host 'web settings allowlist: N/A (rc.7 removed WEB_SETTINGS_NAMESPACES; card keys on the settings namespace).'
   } else {
-    Write-Host 'web settings allowlist: memory NOT exposed; run scripts\patch-web-settings.ps1 and restart DSH.'
-    exit 1
+    $close = $apiProxy.IndexOf('];', $anchor)
+    $block = $apiProxy.Substring($anchor, $close - $anchor)
+    if ($block -match '"memory"') {
+      Write-Host 'web settings allowlist: memory exposed.'
+    } else {
+      Write-Host 'web settings allowlist: memory NOT exposed; run scripts\patch-web-settings.ps1 and restart DSH.'
+      exit 1
+    }
   }
 }
 

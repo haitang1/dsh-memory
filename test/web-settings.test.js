@@ -145,7 +145,7 @@ test('client bundle registers the settings.plugin.item card', () => {
   assert.match(source, /__ModuleLoader__\.load\(\{\s*id: '@dsh-external\/dsh-memory'/)
   assert.match(source, /exports\.inject = \['slots', 'locale'\]/)
   assert.match(source, /settings\.plugin\.item/)
-  assert.match(source, /id: 'memory'/)
+  assert.match(source, /key: 'memory'/)
   assert.match(source, /function apply\(ctx\)/)
   assert.match(source, /_dsh\/memory\/settings/)
   assert.match(source, /locale\.register\(NS, \{ en: en, zh: zh \}\)/)
@@ -234,7 +234,7 @@ test('client bundle loads in a browser-like sandbox, localizes, and registers th
   assert.equal(slotRegistrations.length, 1)
   const registration = slotRegistrations[0]
   assert.equal(registration.options.name, 'settings.plugin.item')
-  assert.equal(registration.options.id, 'memory')
+  assert.equal(registration.options.key, 'memory')
   assert.equal(registration.options.order, 30)
   assert.equal(typeof registration.options.label, 'function')
   assert.equal(registration.options.label(), 't:nav')

@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.2.5 (2026-08-18)
+
+### DSH 0.1.0-rc.7 compatibility
+
+- rc.7 changed the `settings.plugin.item` slot from a generic entry to a
+  **keyed slot**: registration now requires `options.key`, and the plugin
+  configuration tab dispatches cards by **settings namespace** (the tab
+  renders the intersection of the namespaces the Host serves via
+  `settings.describe` and the keys registered into the slot). The client
+  bundle registered with `id: 'memory'`, which rc.7's loader rejected with
+  `failed to apply loader entry ... keyed slot "settings.plugin.item"
+  requires options.key` — the DSH web app then failed to boot
+  (`Failed to load plugins`). The card now registers with `key: 'memory'`
+  (its own settings namespace), so it loads and renders.
+- rc.7 removed the hard-coded `WEB_SETTINGS_NAMESPACES` allowlist from
+  `dsh-host-apiproxy` (all registered namespaces are served), so
+  `scripts/patch-web-settings.ps1` no longer applies and
+  `scripts/verify-after-restart.ps1` now reports the rc.7 behavior instead
+  of failing.
+- New `scripts/start-dsh-logged.ps1`: diagnostic launch path that restarts
+  the web process with stdout/stderr redirected to `$DSH_HOME/logs/`.
+- Tests: card registration assertion updated to the keyed protocol;
+  suite is 59/59.
+
 ## 0.2.3 (2026-08-16)
 
 ### Auto-summarization pipeline fixes

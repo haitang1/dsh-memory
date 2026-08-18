@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **Auto memory** — on each finished turn of a root agent, the new conversation text is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.2.4** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.2.5** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
@@ -116,23 +116,17 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 | Script | Purpose |
 | --- | --- |
 | `scripts/sync-install.ps1` | Copy runtime + metadata files into the profile external-plugin directory and verify SHA-256 (`-DryRun` preview, `-Backup` snapshot before writing). |
-| `scripts/verify-after-restart.ps1` | Post-restart verification: file hashes, the Web settings allowlist, and an installed-copy MCP smoke test (`-SkipMcpSmoke`, `-SkipWebSettingsCheck`). |
+| `scripts/verify-after-restart.ps1` | Post-restart verification: file hashes, the Web settings allowlist (rc.7 auto-detected as removed), and an installed-copy MCP smoke test (`-SkipMcpSmoke`, `-SkipWebSettingsCheck`). |
 | `scripts/restart-dsh.ps1` | Stop and relaunch the DSH web process, then run the verification (`-WhatIf` first; closes the running session). |
-| `scripts/patch-web-settings.ps1` | Optional: add `memory` to the `dsh-host-apiproxy` Web settings allowlist (idempotent, backup + syntax check + rollback). |
+| `scripts/start-dsh-logged.ps1` | Diagnostic launch: restart the web process with stdout/stderr redirected to `$DSH_HOME/logs/` (captures startup errors). |
+| `scripts/patch-web-settings.ps1` | Pre-rc.7 only: add `memory` to the `dsh-host-apiproxy` Web settings allowlist (obsolete since rc.7 removed the allowlist). |
 | `scripts/mcp-smoke.mjs` | Standalone MCP server smoke test (version, tool count, add/search round-trip). |
 
 ## Web settings page
 
 The plugin ships a Web client bundle that registers a "Memory (dsh-memory)" card on the plugin configuration page (Settings → Plugins → Plugin config) automatically — no extra step is required beyond the deploy sync. The card edits `maxBytes`, `consolidateEvery`, `autoSummarize`, and `seedFromAgentsMd` through the plugin's own same-origin endpoint (`/_dsh/memory/settings`, registered by the host half). The card copy is localized (English/Chinese) and follows DSH's language setting.
 
-Optionally, the `memory` namespace can also be exposed to the generic Web settings API (whose allowlist lives in the `dsh-host-apiproxy` package, one level above plugins):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1 -WhatIf
-powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1
-```
-
-The patch is idempotent, backs up the target, and re-checks syntax. `scripts/verify-after-restart.ps1` checks the deployed plugin files, the client bundle, and this allowlist. The card was verified end-to-end on this deployment (2026-08-15): edit → save → "Settings saved and applied." → the `memory:` section persisted in `settings.yaml` (changes apply live).
+Since DSH **0.1.0-rc.7**, `settings.plugin.item` is a keyed slot and the plugin configuration tab dispatches cards by **settings namespace**: the card registers with `key: 'memory'` (the plugin's own settings namespace). rc.7 also removed the hard-coded `WEB_SETTINGS_NAMESPACES` allowlist from `dsh-host-apiproxy` — the generic Web settings API serves every registered namespace, so the legacy `patch-web-settings.ps1` no longer applies.
 
 ## Automatic memory & the auto-memory skill
 

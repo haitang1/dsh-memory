@@ -1,6 +1,6 @@
 {
   "name": "@dsh-external/dsh-memory",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Codex-like persistent memory for DeepSeek Harness: auto-injected memory summary, raw memory tools, and per-session rollout summaries distilled into a bounded global memory file.",
   "keywords": [
     "deepseek",

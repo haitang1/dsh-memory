@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.2.4** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.2.5** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -116,23 +116,17 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 | 脚本 | 用途 |
 | --- | --- |
 | `scripts/sync-install.ps1` | 把运行时 + 元数据文件复制到 profile 外部插件目录并校验 SHA-256（`-DryRun` 预览，`-Backup` 写入前快照）。 |
-| `scripts/verify-after-restart.ps1` | 重启后校验：文件哈希、Web 设置白名单、安装副本 MCP 冒烟（`-SkipMcpSmoke`、`-SkipWebSettingsCheck`）。 |
+| `scripts/verify-after-restart.ps1` | 重启后校验：文件哈希、Web 设置白名单（rc.7 起自动识别已移除）、安装副本 MCP 冒烟（`-SkipMcpSmoke`、`-SkipWebSettingsCheck`）。 |
 | `scripts/restart-dsh.ps1` | 停掉并重新拉起 DSH web 进程，随后运行校验（先 `-WhatIf`；会关闭当前会话）。 |
-| `scripts/patch-web-settings.ps1` | 可选：把 `memory` 加入 `dsh-host-apiproxy` 的 Web 设置白名单（幂等、备份 + 语法检查 + 失败回滚）。 |
+| `scripts/start-dsh-logged.ps1` | 诊断启动：重启 DSH 并把 stdout/stderr 重定向到 `$DSH_HOME/logs/`（抓取启动错误）。 |
+| `scripts/patch-web-settings.ps1` | 仅 rc.7 之前版本：把 `memory` 加入 `dsh-host-apiproxy` 的 Web 设置白名单（rc.7 已移除白名单，脚本不再适用）。 |
 | `scripts/mcp-smoke.mjs` | 独立 MCP server 冒烟（版本、工具数、add/search 往返）。 |
 
 ## Web 设置页
 
-插件自带 Web 客户端 bundle，会自动在插件配置页（设置 → 插件 → 插件配置）注册「Memory (dsh-memory)」卡片，无需额外步骤。卡片可编辑 `maxBytes`、`consolidateEvery`、`autoSummarize`、`seedFromAgentsMd`，通过插件自己的同源端点（`/_dsh/memory/settings`，由 host 半部分注册）读写配置。卡片文案为中英双语，跟随 DSH 的语言设置自动切换。
+插件自带 Web 客户端 bundle，会自动在插件配置页（设置 → 插件 → 插件配置）注册「记忆 (dsh-memory)」卡片，无需额外步骤。卡片可编辑 `maxBytes`、`consolidateEvery`、`autoSummarize`、`seedFromAgentsMd`，通过插件自己的同源端点（`/_dsh/memory/settings`，由 host 半部分注册）读写配置。卡片文案为中英双语，跟随 DSH 的语言设置自动切换。
 
-可选：把 `memory` 命名空间也暴露给通用 Web 设置 API（其白名单位于 `dsh-host-apiproxy` 包内，比插件高一层）：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1 -WhatIf
-powershell -ExecutionPolicy Bypass -File scripts/patch-web-settings.ps1
-```
-
-补丁幂等、自动备份、改后做语法检查。`scripts/verify-after-restart.ps1` 会校验部署的插件文件、客户端 bundle 与这个白名单。本部署已端到端实测（2026-08-15）：编辑 → 保存 → "Settings saved and applied." → `settings.yaml` 的 `memory:` 段落盘（改动即时生效）。
+自 DSH **0.1.0-rc.7** 起：`settings.plugin.item` 改为 keyed 槽位，插件配置页按**设置命名空间**派发卡片 —— 卡片以 `key: 'memory'` 注册（即插件自己的设置命名空间）；同时 rc.7 移除了 `dsh-host-apiproxy` 的硬编码设置白名单（`WEB_SETTINGS_NAMESPACES`），通用 Web 设置 API 直接服务全部已注册命名空间，因此旧版 `patch-web-settings.ps1` 已不适用。
 
 ## 自动记忆与 auto-memory 技能
 
