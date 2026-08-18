@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.6 (2026-08-18)
+
+### Full configuration in the Web settings card
+
+- The "Memory (dsh-memory)" card now exposes **every** plugin config field
+  (22 total, was 4), grouped into General / Auto-summarization &
+  consolidation / Scopes / Security & embeddings, with en/zh copy for every
+  label and hint. No host-side change: GET already returns the full resolved
+  section and POST replaces it wholesale, so the card's full draft
+  round-trips every field.
+- `embeddingApiKey` renders as a masked password input; the unchanged value
+  round-trips untouched (no redaction placeholder that would clobber the key).
+- `readOnlyScopes` is edited as a comma-separated text input.
+- `memoryDir` carries a "restart DSH to take effect" hint (the store directory
+  is fixed at boot).
+- Number inputs carry the schema bounds (min/max) and keep the previous
+  value when cleared, so an empty field cannot submit an invalid number.
+- Tests: one new case asserts every field has en+zh label/hint copy and is
+  wired through `update(key, ...)`; suite is 60/60.
+
 ## 0.2.5 (2026-08-18)
 
 ### DSH 0.1.0-rc.7 compatibility

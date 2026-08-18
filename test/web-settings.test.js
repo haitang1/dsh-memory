@@ -158,6 +158,45 @@ test('client bundle registers the settings.plugin.item card', () => {
   assert.match(source, /dmm-chevOpen/)
 })
 
+test('card exposes every config field with localized copy and correct controls', () => {
+  const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+
+  // Every config field (see Config in lib/index.js) must have en+zh label and
+  // hint keys (checkboxes carry label-only rows), rendered in the card body.
+  const labelOnly = ['autoSummarize', 'scopedMemory', 'redactSecrets', 'seedFromAgentsMd']
+  const withHint = [
+    'memoryDir', 'maxBytes', 'consolidateMaxBytes', 'keepSummaryVersions',
+    'rawArchiveMaxBytes', 'summarizeProvider', 'summarizeModel',
+    'summarizeDebounceMs', 'consolidateEvery', 'summaryMaxTokens',
+    'consolidateMaxTokens', 'llmRetries', 'maxActiveSummaries', 'scopeMaxBytes',
+    'readOnlyScopes', 'embeddingBaseURL', 'embeddingApiKey', 'embeddingModel'
+  ]
+  for (const key of labelOnly) {
+    const occurrences = (source.match(new RegExp(key + 'Label', 'g')) || []).length
+    assert.ok(occurrences >= 2, `${key}Label must exist in en and zh (found ${occurrences})`)
+  }
+  for (const key of withHint) {
+    const labelHits = (source.match(new RegExp(key + 'Label', 'g')) || []).length
+    const hintHits = (source.match(new RegExp(key + 'Hint', 'g')) || []).length
+    assert.ok(labelHits >= 2, `${key}Label must exist in en and zh (found ${labelHits})`)
+    assert.ok(hintHits >= 2, `${key}Hint must exist in en and zh (found ${hintHits})`)
+  }
+
+  // Group headings render in both locales and the body renders them.
+  for (const key of ['groupGeneral', 'groupAuto', 'groupScopes', 'groupSecurity']) {
+    assert.ok((source.match(new RegExp(key, 'g')) || []).length >= 3, `${key} must be defined and rendered`)
+  }
+
+  // Controls: secret field is masked; readOnlyScopes round-trips through a
+  // comma-separated text input; every field writes through update(key, ...).
+  assert.match(source, /type: 'password'/)
+  assert.match(source, /readOnlyScopes', event\.target\.value\.split\(','\)/)
+  assert.match(source, /readOnlyScopes\) \? value\.readOnlyScopes\.join\(', '\)/)
+  for (const key of withHint) {
+    assert.ok(source.includes(`update('${key}'`), `card must wire update('${key}', ...)`)
+  }
+})
+
 test('client bundle loads in a browser-like sandbox, localizes, and registers the card', () => {
   const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
 

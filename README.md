@@ -124,7 +124,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## Web settings page
 
-The plugin ships a Web client bundle that registers a "Memory (dsh-memory)" card on the plugin configuration page (Settings → Plugins → Plugin config) automatically — no extra step is required beyond the deploy sync. The card edits `maxBytes`, `consolidateEvery`, `autoSummarize`, and `seedFromAgentsMd` through the plugin's own same-origin endpoint (`/_dsh/memory/settings`, registered by the host half). The card copy is localized (English/Chinese) and follows DSH's language setting.
+The plugin ships a Web client bundle that registers a "Memory (dsh-memory)" card on the plugin configuration page (Settings → Plugins → Plugin config) automatically — no extra step is required beyond the deploy sync. The card edits **every** config field (grouped into General / Auto-summarization & consolidation / Scopes / Security & embeddings) through the plugin's own same-origin endpoint (`/_dsh/memory/settings`, registered by the host half). The card copy is localized (English/Chinese) and follows DSH's language setting; `embeddingApiKey` is shown masked, and `memoryDir` changes require a DSH restart.
 
 Since DSH **0.1.0-rc.7**, `settings.plugin.item` is a keyed slot and the plugin configuration tab dispatches cards by **settings namespace**: the card registers with `key: 'memory'` (the plugin's own settings namespace). rc.7 also removed the hard-coded `WEB_SETTINGS_NAMESPACES` allowlist from `dsh-host-apiproxy` — the generic Web settings API serves every registered namespace, so the legacy `patch-web-settings.ps1` no longer applies.
 
