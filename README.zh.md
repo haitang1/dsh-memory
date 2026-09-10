@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.2.11** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.2.12** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -69,7 +69,7 @@ dsh plugin --profile web add 'github:haitang1/dsh-memory#f3c8de4'
 | `summarizeDebounceMs` | `300000` | 同一会话两次蒸馏的最小间隔（0 = 关闭防抖）。 |
 | `consolidateEvery` | `3` | 累计多少份 rollout 摘要后重新合并全局摘要。 |
 | `summaryMaxTokens` | `1500` | 单轮摘要 LLM 的最大输出 token。 |
-| `consolidateMaxTokens` | `8192` | 摘要合并 LLM 的最大输出 token。 |
+| `consolidateMaxTokens` | `8192` | 摘要合并 LLM 的最大输出 token。低于 `maxBytes` 规模摘要所需的底线时会在运行时被提升，并在 `memory_stats.configAlerts` 中上报。 |
 | `llmRetries` | `1` | LLM 瞬时失败后的重试次数。 |
 | `maxActiveSummaries` | `4` | 同时进行的轮次摘要上限，超出后丢弃新任务。 |
 | `scopedMemory` | `false` | 开启按工作区隔离的记忆作用域。 |
@@ -79,7 +79,25 @@ dsh plugin --profile web add 'github:haitang1/dsh-memory#f3c8de4'
 | `scopeMaxBytes` | `2400` | scopedMemory 开启时工作区摘要的注入字节预算。 |
 | `seedFromAgentsMd` | `true` | 是否用 `$DSH_HOME/AGENTS.md` 导入初始摘要。 |
 
-Web 设置页卡片（见下文）可在线编辑**全部配置项**；各键亦可通过 loader 配置或 `settings.yaml` 的 `memory:` 段覆盖。
+Web 设置页卡片（见下文）可在线编辑**全部配置项**；各键亦可通过 loader 配置或 `settings.yaml` 的 `memory:` 段覆盖。配置解析顺序为 schema 默认 → 组合 `base` → **user 层**，user 层优先级最高，因此卡片只持久化**你改动过的字段**；把字段改回默认值时会删除其 user 层条目，而不是把默认值写死。详见[升级须知](#升级须知)。
+
+## 升级须知
+
+插件升级可能改动配置**默认值**，但已写入 user 层的旧值优先级更高（解析顺序：schema 默认 → `base` 组合层 → user 层，user 层胜出）。因此被旧版本固化的值会一直覆盖新默认值——这正是 `consolidateMaxTokens: 3000`（0.2.11 之前的默认值）在 0.2.11 把默认值提到 `8192` 之后仍然卡住合并的原因：每次合并都以 `dsh-memory: LLM output reached max tokens` 失败、摘要停止推进，而插件表面上一切正常（工具、注入、Web 卡片都照常工作）。
+
+自 **0.2.12** 起有三道防护：
+
+- **保存卡片不再固化默认值。** 卡片只提交你改动过的字段；把字段改回默认值时，会删除对应的 user 层条目而不是把默认值写死。端点对收到的任何载荷都会做同样的归一化，因此浏览器里缓存的旧卡片也无法固化默认值。
+- **过小的合并预算会在运行时被提升**到 `maxBytes` 规模摘要所需的底线，并通过 `memory_stats.configAlerts` 与日志告警上报；显式设置的更大值仍被尊重。
+- 输出超限导致的失败会带上具体键名与生效值，而不只是 `LLM output reached max tokens`。
+
+查看三层实际生效值：
+
+```sh
+curl -s http://127.0.0.1:3080/_dsh/memory/settings   # 依次为 settings.value / .base / .user / .defaults
+```
+
+清除陈旧覆盖：在卡片里改回默认值，或删除 `$DSH_HOME/settings.yaml` 中 `memory:` 段里的该键——设置提供方会热加载该文件，无需重启 DSH。
 
 ## 工具
 
@@ -155,7 +173,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## 开发与测试
 
-`npm test` 运行 65 项测试（node:test）：
+`npm test` 运行 71 项测试（node:test）：
 
 - `test/store.test.js` —— 存储语义、journal、历史、归档、作用域；
 - `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链、`extractMessageText`（user/assistant 事件结构）；
@@ -163,7 +181,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 - `test/web-settings.test.js` —— 设置端点生命周期（GET/POST、403/409、体积限制），以及 VM 沙箱加载客户端 bundle 断言 `settings.plugin.item` 卡片注册；
 - `test/embedding.integration.test.js` —— fake `/embeddings` 服务 + 本地哈希向量；
 - `test/mcp.integration.test.js` —— 真实 MCP 子进程往返；
-- `test/host-wiring.test.js` —— 守卫 `lib/index.js` 的宿主对接面：裸字符串设置命名空间、`settingsNamespace` 辅助导出缺失、Surface 层 `snapshotEvents`（而非 `Session.events`）、`llm` 服务经 `inject(['llm'])` 等待（而非启动时 `ctx.get`）、14 个工具清单、`agent/turn-stopping`、`systemPrompt.context` 钩子、auto-memory 技能，以及经 fake cordis ctx 的 `apply()` 冒烟（零依赖 CI 中跳过）。
+- `test/host-wiring.test.js` —— 守卫 `lib/index.js` 的宿主对接面：裸字符串设置命名空间、`settingsNamespace` 辅助导出缺失、Surface 层 `snapshotEvents`（而非 `Session.events`）、`llm` 服务经 `inject(['llm'])` 等待（而非启动时 `ctx.get`）、`settings.mutate` 保存路径（不再全量 `replace`）与合并 token 底线、14 个工具清单、`agent/turn-stopping`、`systemPrompt.context` 钩子、auto-memory 技能，以及经 fake cordis ctx 的 `apply()` 冒烟（同时断言低于底线的 `consolidateMaxTokens` 被提升并上报；零依赖 CI 中跳过）。
 
 架构与机制说明见 [`docs/DESIGN.md`](docs/DESIGN.md)；部署状态见 [`docs/STATUS.md`](docs/STATUS.md)。
 

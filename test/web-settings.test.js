@@ -31,16 +31,54 @@ function fakeSettings() {
     writable: true,
     value: { maxBytes: 8000, autoSummarize: true, consolidateEvery: 3, seedFromAgentsMd: true },
     revision: 7,
+    base: undefined,
+    user: undefined,
     describe() {
-      return [{ ns: 'memory', value: settings.value, revision: settings.revision }]
+      return [{
+        ns: 'memory',
+        value: settings.value,
+        ...settings.base === undefined ? {} : { base: settings.base },
+        ...settings.user === undefined ? {} : { user: settings.user },
+        revision: settings.revision
+      }]
+    },
+    applyOps(ops) {
+      const next = { ...settings.value }
+      for (const op of ops) {
+        if (op.op === 'set') next[op.path[0]] = op.value
+        else delete next[op.path[0]]
+      }
+      settings.value = next
+      if (settings.user !== undefined) {
+        const user = { ...settings.user }
+        for (const op of ops) {
+          if (op.op === 'set') user[op.path[0]] = op.value
+          else delete user[op.path[0]]
+        }
+        settings.user = user
+      }
+      settings.revision += 1
+    },
+    async mutate(ns, ops, expectedRevision) {
+      calls.push({ method: 'mutate', ns, ops, expectedRevision })
+      settings.applyOps(ops)
     },
     async replace(ns, section, expectedRevision) {
-      calls.push({ ns, section, expectedRevision })
+      calls.push({ method: 'replace', ns, section, expectedRevision })
       settings.value = section
       settings.revision += 1
     }
   }
   return { settings, calls }
+}
+
+/** Same-origin POST helper for the settings endpoint. */
+async function postSettings(settings, payload, readDefaults) {
+  const handler = memorySettingsRouteHandler(fakeCtx, settings, readDefaults)
+  const res = fakeResponse()
+  const body = typeof payload === 'string' ? payload : JSON.stringify(payload)
+  await handler(fakeRequest('POST', body, { 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' }), res)
+  return res
 }
 
 const fakeCtx = { logger: { warn: () => {} } }
@@ -73,6 +111,70 @@ test('POST saves the section and returns the updated snapshot', async () => {
   assert.equal(calls[0].expectedRevision, 7)
 })
 
+test('POST persists only the fields that differ from the resolved value', async () => {
+  const { settings, calls } = fakeSettings()
+  // A legacy card posts the whole form; only maxBytes actually changed here.
+  const res = await postSettings(settings, {
+    action: 'save',
+    expectedRevision: 7,
+    value: { maxBytes: 4000, autoSummarize: true, consolidateEvery: 3, seedFromAgentsMd: true }
+  }, () => ({ maxBytes: 8000, autoSummarize: true, consolidateEvery: 3, seedFromAgentsMd: true }))
+  assert.equal(res.status, 200)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].method, 'mutate', 'saves must patch the namespace, not replace the whole section')
+  assert.deepEqual(calls[0].ops, [{ op: 'set', path: ['maxBytes'], value: 4000 }])
+})
+
+test('POST drops a user-layer override that is saved back at its default', async () => {
+  const { settings, calls } = fakeSettings()
+  settings.user = { consolidateMaxTokens: 3000 }
+  settings.value = { ...settings.value, consolidateMaxTokens: 3000 }
+  const res = await postSettings(settings, {
+    action: 'save',
+    expectedRevision: 7,
+    value: { ...settings.value, consolidateMaxTokens: 8192 }
+  }, () => ({ maxBytes: 8000, consolidateMaxTokens: 8192 }))
+  assert.equal(res.status, 200)
+  assert.deepEqual(calls[0].ops, [{ op: 'unset', path: ['consolidateMaxTokens'] }])
+  assert.equal(JSON.parse(res.ended).value.settings.value.consolidateMaxTokens, undefined)
+})
+
+test('POST accepts an explicit set/unset diff from the card', async () => {
+  const { settings, calls } = fakeSettings()
+  settings.user = { consolidateMaxTokens: 3000 }
+  settings.value = { ...settings.value, consolidateMaxTokens: 3000 }
+  const res = await postSettings(settings, {
+    action: 'save',
+    expectedRevision: 7,
+    set: { maxBytes: 4000 },
+    unset: ['consolidateMaxTokens']
+  }, () => ({ maxBytes: 8000, consolidateMaxTokens: 8192 }))
+  assert.equal(res.status, 200)
+  assert.deepEqual(calls[0].ops, [
+    { op: 'unset', path: ['consolidateMaxTokens'] },
+    { op: 'set', path: ['maxBytes'], value: 4000 }
+  ])
+})
+
+test('GET exposes schema defaults so the card can spot a reset field', async () => {
+  const { settings } = fakeSettings()
+  const handler = memorySettingsRouteHandler(fakeCtx, settings, () => ({ maxBytes: 8000 }))
+  const res = fakeResponse()
+  await handler(fakeRequest('GET'), res)
+  assert.equal(res.status, 200)
+  assert.deepEqual(JSON.parse(res.ended).value.settings.defaults, { maxBytes: 8000 })
+})
+
+test('POST rejects a malformed save payload', async () => {
+  const { settings } = fakeSettings()
+  const badSet = await postSettings(settings, { action: 'save', expectedRevision: 7, set: [] })
+  assert.equal(badSet.status, 400)
+  assert.equal(JSON.parse(badSet.ended).error.code, 'invalid-request')
+  const badUnset = await postSettings(settings, { action: 'save', expectedRevision: 7, unset: ['', 5] })
+  assert.equal(badUnset.status, 400)
+  assert.equal(JSON.parse(badUnset.ended).error.code, 'invalid-request')
+})
+
 test('POST rejects a cross-site origin', async () => {
   const { settings } = fakeSettings()
   const handler = memorySettingsRouteHandler(fakeCtx, settings)
@@ -88,7 +190,7 @@ test('POST maps a settings conflict to 409', async () => {
   const { settings } = fakeSettings()
   const conflict = new Error('moved')
   conflict.code = 'SETTINGS_CONFLICT'
-  settings.replace = async () => { throw conflict }
+  settings.mutate = async () => { throw conflict }
   const handler = memorySettingsRouteHandler(fakeCtx, settings)
   const res = fakeResponse()
   const body = JSON.stringify({ action: 'save', expectedRevision: 7, value: { maxBytes: 4000 } })
@@ -156,6 +258,12 @@ test('client bundle registers the settings.plugin.item card', () => {
   assert.match(source, /dmm-footer/)
   assert.match(source, /IconChevronDownOutline14/)
   assert.match(source, /dmm-chevOpen/)
+  // Saves must send a minimal set/unset patch rather than the whole form:
+  // posting every field pins today's defaults into the user layer, where they
+  // outrank later releases' defaults and silently break the pipeline.
+  assert.match(source, /function savePatch\(\)/)
+  assert.match(source, /set: patch\.set, unset: patch\.unset/)
+  assert.doesNotMatch(source, /value:\s*draft/, 'the card must not post the whole form')
 })
 
 test('card exposes every config field with localized copy and correct controls', () => {

@@ -14,10 +14,13 @@
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
-const root = new URL('..', import.meta.url)
-const pkg = JSON.parse(readFileSync(join(root.pathname, 'package.json'), 'utf8'))
+// fileURLToPath, not URL.pathname: on Windows the latter yields "/E:/…", which
+// path.join turns into a drive-relative "E:\E:\…" and the check cannot run.
+const root = fileURLToPath(new URL('..', import.meta.url))
+const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const version = pkg.version
 
 let failed = false
@@ -27,7 +30,7 @@ function fail(what, expected, actual) {
 }
 
 function read(name) {
-  return readFileSync(join(root.pathname, name), 'utf8')
+  return readFileSync(join(root, name), 'utf8')
 }
 
 // 1. CHANGELOG newest heading.
@@ -74,7 +77,7 @@ if (typeof testScript !== 'string') {
   if (files.length === 0) {
     fail('scripts.test file list', 'at least one test file', '(none)')
   }
-  const result = spawnSync(process.execPath, ['--test', ...files], { encoding: 'utf8', cwd: root.pathname })
+  const result = spawnSync(process.execPath, ['--test', ...files], { encoding: 'utf8', cwd: root })
   const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`
   const summary = output.match(/#\s*tests\s+(\d+)/)
   if (summary === null) {

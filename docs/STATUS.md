@@ -1,8 +1,9 @@
 # dsh-memory 状态
 
-## 当前状态（2026-09-05）
+## 当前状态（2026-09-10）
 
-- 最新版本：**0.2.11**（main），65/65 自动化测试全绿（默认跑，harness 依赖存在时含 `apply()` 冒烟；零依赖 CI 中该冒烟跳过）。`npm run check` 通过。
+- 最新版本：**0.2.12**（main），71/71 自动化测试全绿（默认跑，harness 依赖存在时含 `apply()` 冒烟；零依赖 CI 中该冒烟跳过）。`npm run check` 通过（本版起 `check-release.mjs` 用 `fileURLToPath` 解析根目录，Windows 上也能运行）。
+- 0.2.12 修复（配置漂移）：升级改 schema 默认值不足以生效——user 层优先级高于 base 与 schema 默认，旧版本固化的值会继续覆盖新默认。实测：0.2.11 把 `consolidateMaxTokens` 提到 8192 后，曾保存过设置卡片的实例其 user 层仍是 3000，合并继续以 `LLM output reached max tokens` 失败，摘要 7 天停在 v52、journal 游标 13/42，而工具/注入/Web 端点全部正常。根因：卡片以**生效值**初始化表单，再经 `settings.replace` 整段写入，保存一次就把 22 个字段（含全部默认值）固化进 user 层。修复：① 卡片只提交改动字段（`set`/`unset` 差异），改回默认值即删除该 user 条目；② 端点把任何载荷（含旧卡片的整段 `value`）归一化为最小补丁，改用 `settings.mutate` 路径写入；③ `consolidateMaxTokens` 增加运行时底线 `min(16384, max(4096, ceil(maxBytes/2)))`，低于底线则提升而非照做，并写入 `memory_stats.configAlerts`、日志与 `diagnostics.json`；④ 超限失败信息带上键名与生效值。已在线实测：修改 `settings.yaml` 后热载生效，合并恢复（摘要 v52 → v53，游标追平 43/43）。
 - 0.2.11 修复：`consolidateMaxTokens` 默认 3000 → **8192**（合并输出需容纳 ~8KB 有界摘要 ≈ 4-6K token，3000 触发 `LLM output reached max tokens`，摘要停在 v12 无法推进；已在线实测：蒸馏写入 rollout 后合并报此错）。
 - 0.2.10 修复：`llm` 服务改为经 `ctx.inject(['llm'],…)` 等待，而非启动时 `ctx.get('llm')`（DSH 0.1.2-rc.1 下后者返回 undefined，自动摘要静默跳过：`llm calls: 0`、`skips {"disabled":1}`、摘要永不更新）；新增 host-wiring llm 守卫。已在线实测：蒸馏端到端恢复（rollout 14:39 写入）。
 - 0.2.9 修复：适配 DSH **0.1.2-rc.1** 的 Surface 层 —— `Session.events` 被 `snapshotEvents`/`deriveMessages` 替换，`extractTurnText` 改为 `agent.session.snapshotEvents(fromSeq)`（此前每次轮次摘要都抛 `Cannot read properties of undefined (reading entries)`）；新增 host-wiring Surface 守卫。

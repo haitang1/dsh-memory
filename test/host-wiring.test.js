@@ -51,6 +51,19 @@ test('host wiring: waits for the llm service via inject instead of a boot-time c
     'must not capture llm once at boot; wait for the injected service')
 })
 
+test('host wiring: settings saves patch the namespace and keep a consolidation token floor', async () => {
+  const web = await readFile(new URL('../lib/web.js', import.meta.url), 'utf8')
+  assert.match(web, /settings\.mutate\(/,
+    'saves must go through settings.mutate (path-addressed patch)')
+  assert.doesNotMatch(web, /settings\.replace\(/,
+    'must not replace the whole user section: that pins current defaults into the user layer, where they outrank every later release default')
+  const index = await readFile(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.match(index, /consolidateTokenFloor\(/,
+    'must floor the consolidation output budget so an inherited override cannot silently break merges')
+  assert.match(index, /configAlerts/,
+    'must report a lifted budget through diagnostics and memory_stats')
+})
+
 // apply() smoke: drives the real plugin entry through a fake cordis ctx and
 // asserts the host wiring actually registers everything. Imports the harness
 // packages (dsh-llm / dsh-tools) transitively, so it only runs where they are
@@ -71,10 +84,13 @@ test('host wiring: apply() registers the memory settings, 14 tools, the skill, a
   const fakeSettings = {
     register(namespace, config, opts) {
       hook.settings = { namespace, config, opts }
-      return { get: () => config, watch: () => () => {} }
+      // The real scope resolves schema defaults -> composition base -> user; the
+      // fake carries the composition base (the loader config) as that value.
+      return { get: () => ({ ...opts.base }), watch: () => () => {} }
     },
     describe: () => [{ ns: 'memory', value: {}, base: {}, user: {}, revision: 0 }],
     writable: true,
+    mutate: async () => {},
     replace: async () => {}
   }
 
@@ -114,7 +130,7 @@ test('host wiring: apply() registers the memory settings, 14 tools, the skill, a
   }
 
   try {
-    plugin.apply(fakeCtx, { memoryDir: tmpDir, autoSummarize: false, seedFromAgentsMd: false })
+    plugin.apply(fakeCtx, { memoryDir: tmpDir, autoSummarize: false, seedFromAgentsMd: false, consolidateMaxTokens: 3000 })
 
     assert.equal(hook.settings.namespace, 'memory', 'settings namespace must be the bare string "memory"')
     assert.equal(hook.tools.length, TOOL_NAMES.length, 'all memory_* tools must be registered')
@@ -124,6 +140,15 @@ test('host wiring: apply() registers the memory settings, 14 tools, the skill, a
     assert.equal(hook.systemPrompt.order, 2000)
     assert.equal(typeof hook.turnStopping, 'function', 'agent/turn-stopping handler must be subscribed')
     assert.ok(hook.routes.length >= 1, 'the same-origin settings route must be registered')
+
+    // A user-layer override below the safe floor must be lifted (not obeyed) and
+    // the lift reported, instead of failing every merge with 'max tokens'.
+    const stats = hook.tools.find((def) => def.name === 'memory_stats')
+    const value = await stats.execute({}, { signal: { aborted: false } })
+    assert.equal(value.consolidateMaxTokens, 4096, 'consolidateMaxTokens must be floored for a maxBytes-sized summary')
+    assert.equal(value.configAlerts.length, 1, 'a lifted budget must be reported')
+    assert.equal(value.configAlerts[0].key, 'consolidateMaxTokens')
+    assert.equal(value.configAlerts[0].configured, 3000)
   } finally {
     for (const dispose of cleanups) {
       try { dispose() } catch { /* ignore disposal errors */ }

@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **Auto memory** — on each finished turn of a root agent, the new conversation text is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.2.11** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.2.12** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
@@ -69,7 +69,7 @@ Pinning a commit is recommended (`f3c8de4` is the `v0.2.7` release commit); omit
 | `summarizeDebounceMs` | `300000` | Minimum interval between summarizations of the same session (0 disables the debounce). |
 | `consolidateEvery` | `3` | Rollout summaries written before re-consolidating the global summary. |
 | `summaryMaxTokens` | `1500` | Max output tokens for turn summarization. |
-| `consolidateMaxTokens` | `8192` | Max output tokens for summary consolidation. |
+| `consolidateMaxTokens` | `8192` | Max output tokens for summary consolidation. Values below the floor a `maxBytes`-sized summary needs are lifted at runtime and reported in `memory_stats.configAlerts`. |
 | `llmRetries` | `1` | Retries after a transient LLM failure. |
 | `maxActiveSummaries` | `4` | Maximum concurrent turn summarizations before new jobs are dropped. |
 | `scopedMemory` | `false` | Enable per-workspace memory scopes. |
@@ -79,7 +79,25 @@ Pinning a commit is recommended (`f3c8de4` is the `v0.2.7` release commit); omit
 | `scopeMaxBytes` | `2400` | Injected byte budget for the workspace summary when scopedMemory is enabled. |
 | `seedFromAgentsMd` | `true` | Seed the first summary from `$DSH_HOME/AGENTS.md`. |
 
-The Web settings card (see below) edits every config field live; keys are likewise overridable through the loader row or the `memory:` section of `settings.yaml`.
+The Web settings card (see below) edits every config field live; keys are likewise overridable through the loader row or the `memory:` section of `settings.yaml`. Settings resolve as schema defaults → composition `base` → **user layer**, and the user layer wins, so the card persists **only the fields you changed** and a field saved back at its default drops its user-layer entry instead of pinning the default. See [Upgrade notes](#upgrade-notes).
+
+## Upgrade notes
+
+An upgraded plugin may change a config **default**, but a value already stored in the user layer outranks it (defaults → `base` → user). A value pinned by an older release therefore keeps overriding the new default — that is how a `consolidateMaxTokens` of `3000` (the pre-0.2.11 default) kept capping consolidation after 0.2.11 raised the default to `8192`, so every merge failed with `dsh-memory: LLM output reached max tokens` and the summary stopped advancing while the plugin still looked healthy.
+
+Guards from **0.2.12** on:
+
+- **Saving the card no longer pins defaults.** The card posts only the fields you changed, and setting a field back to its default removes the user-layer override rather than re-pinning it. The endpoint normalizes whichever payload it receives, so an older cached card cannot pin defaults either.
+- **A too-small consolidation budget is lifted at runtime** to the floor a `maxBytes`-sized summary needs, and reported through `memory_stats.configAlerts` plus a log warning. Larger configured values are still honored.
+- A truncation failure now names the key and its effective value instead of only `LLM output reached max tokens`.
+
+To inspect the three layers in effect:
+
+```sh
+curl -s http://127.0.0.1:3080/_dsh/memory/settings   # settings.value / .base / .user / .defaults
+```
+
+To clear a stale override, edit it in the card, or delete the key from the `memory:` section of `$DSH_HOME/settings.yaml` — the settings provider hot-reloads the file, so no DSH restart is needed.
 
 ## Tools
 
@@ -172,7 +190,7 @@ Tools accept a `scope` argument (`global` | `workspace` | `project`); the projec
 
 ## Development & testing
 
-`npm test` runs 65 tests (node:test):
+`npm test` runs 71 tests (node:test):
 
 - `test/store.test.js` — store semantics, journal, history, archiving, scopes;
 - `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain, and `extractMessageText` (user/assistant event shapes);
@@ -180,7 +198,7 @@ Tools accept a `scope` argument (`global` | `workspace` | `project`); the projec
 - `test/web-settings.test.js` — the settings endpoint lifecycle (GET/POST, 403/409, body limits) plus a VM-sandbox load of the client bundle asserting the `settings.plugin.item` card registration;
 - `test/embedding.integration.test.js` — fake `/embeddings` server + local hashed vectors;
 - `test/mcp.integration.test.js` — real MCP child-process round-trips;
-- `test/host-wiring.test.js` — guards the harness-facing surface of `lib/index.js`: bare-string settings namespace, the removed `settingsNamespace` helper absent, the Surface layer (`snapshotEvents`) instead of `Session.events`, the `llm` service waited for via `inject(['llm'])` instead of a boot-time `ctx.get`, the 14-tool list, `agent/turn-stopping`, the `systemPrompt.context` hook, the auto-memory skill, plus an `apply()` smoke through a fake cordis ctx (skipped in a zero-dependency CI).
+- `test/host-wiring.test.js` — guards the harness-facing surface of `lib/index.js`: bare-string settings namespace, the removed `settingsNamespace` helper absent, the Surface layer (`snapshotEvents`) instead of `Session.events`, the `llm` service waited for via `inject(['llm'])` instead of a boot-time `ctx.get`, the `settings.mutate` save path (no whole-section `replace`) with a consolidation token floor, the 14-tool list, `agent/turn-stopping`, the `systemPrompt.context` hook, the auto-memory skill, plus an `apply()` smoke through a fake cordis ctx that also asserts a sub-floor `consolidateMaxTokens` is lifted and reported (skipped in a zero-dependency CI).
 
 The architecture and mechanism notes live in [`docs/DESIGN.md`](docs/DESIGN.md); deployment status in [`docs/STATUS.md`](docs/STATUS.md).
 

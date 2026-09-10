@@ -5,7 +5,7 @@
 ## 1. 项目概览
 
 - **定位**：DeepSeek Harness（DSH）的类 Codex 持久记忆插件——全局摘要注入每次提示词、14 个 `memory_*` 工具读写、每轮自动蒸馏、定期合并、版本化回滚；另附独立 stdio MCP server 与 Web 设置卡片。
-- **当前版本**：0.2.11（MIT，ESM，`engines: node >= 20.3`）。
+- **当前版本**：0.2.12（MIT，ESM，`engines: node >= 20.3`）。
 - **零运行时第三方依赖**：`dependencies` 为空，只有 `peerDependencies`（见红线 3）。仓库无 lockfile、无构建步骤、无 lint/typecheck——保持可读可跑，防漂移靠 `npm run check`。
 
 ## 2. 架构与模块地图
@@ -32,6 +32,8 @@
 4. **新增配置键四同步**：`Config`（`lib/index.js` z.object）→ `lib/types/index.d.ts` → README 配置表（en/zh）→ `lib/client.js` 卡片（en+zh 标签/提示）。漏一处即出现文档漂移。
 5. 四个纯逻辑模块（store/web/browser/automation）**禁止**新增任何 `@deepseek-ai/*` import——CI 零依赖直跑是它们换来的。
 6. 宿主接线改动（`apply()`/`toolDefinitions()`）没有自动化运行时覆盖，改完必须同时更新/运行 `test/host-wiring.test.js` 且做一次真实部署验证，不能只靠"能 import"。
+7. **设置保存只能走最小补丁：`settings.mutate` + `set`/`unset`，禁止整段 `settings.replace`**。配置解析顺序是 schema 默认 → 组合 `base` → **user 层（优先级最高）**，整段写入会把「保存当时的默认值」固化成用户覆盖，此后升级改默认值一律不生效。`lib/web.js` 对**任何**载荷（含旧卡片的整段 `value`）都归一化为最小补丁，`lib/client.js` 只提交改动字段；改这条协议时必须保留 host 端归一化（标签页里缓存的旧 client 会继续整段提交）。
+8. **合并/摘要的输出 token 预算不得低于安全底线**（`consolidateTokenFloor(maxBytes)`，见 `lib/index.js`）。低于底线时提升而非照做，并通过 `memory_stats.configAlerts` + 日志 + `diagnostics.json` 上报——否则每次合并都报 `LLM output reached max tokens`，而插件表面上完全正常（0.2.11→0.2.12 的教训）。
 
 ## 4. 存储格式与一致性
 
@@ -66,9 +68,9 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 
 ## 6. 测试体系
 
-- `npm test` = **65 项**（node:test，约 0.3s）：`store`（存储语义/journal/历史/归档/作用域）、`automation`（技能定义/路由回退链/事件文本提取）、`browser`（HTML 快照）、`web-settings`（端点生命周期 + VM 沙箱卡片注册）、`embedding.integration`（fake `/embeddings` + 本地向量）、`mcp.integration`（真实子进程往返）、`host-wiring`（见下）。
+- `npm test` = **71 项**（node:test，约 0.4s）：`store`（存储语义/journal/历史/归档/作用域）、`automation`（技能定义/路由回退链/事件文本提取）、`browser`（HTML 快照）、`web-settings`（端点生命周期 + 最小补丁保存 + VM 沙箱卡片注册）、`embedding.integration`（fake `/embeddings` + 本地向量）、`mcp.integration`（真实子进程往返）、`host-wiring`（见下）。
 - **零依赖原则**：CI（`.github/workflows/ci.yml`，node 20/22，push main + PR）**不 install**，直接 `npm run check && npm test`。任何测试新增对第三方包的硬依赖都会让 CI 崩。
-- `test/host-wiring.test.js`：①源码守卫——`settings.register('memory'…` 存在、`settingsNamespace` 不存在、`snapshotEvents` 存在且 `session.events.entries()` 不存在、`inject(['llm'])` 存在且无启动时 `const llm = ctx.get('llm')`、14 工具名齐全、`agent/turn-stopping`/`systemPrompt.context`/`AUTO_MEMORY_SKILL` 存在；②fake-ctx `apply()` 冒烟——断言裸字符串命名空间、14 工具注册、技能、注入钩子、settings 路由。**当 harness 包不可解析时必须 `t.skip()` 而非报错**（CI 情形），且**不能改变 `# tests` 计数**（check-release 依赖该计数）。
+- `test/host-wiring.test.js`：①源码守卫——`settings.register('memory'…` 存在、`settingsNamespace` 不存在、`snapshotEvents` 存在且 `session.events.entries()` 不存在、`inject(['llm'])` 存在且无启动时 `const llm = ctx.get('llm')`、`settings.mutate(` 存在且无 `settings.replace(`、`consolidateTokenFloor(` 与 `configAlerts` 存在、`lib/client.js` 无整段 `value: draft`、14 工具名齐全、`agent/turn-stopping`/`systemPrompt.context`/`AUTO_MEMORY_SKILL` 存在；②fake-ctx `apply()` 冒烟——断言裸字符串命名空间、14 工具注册、技能、注入钩子、settings 路由，并执行 `memory_stats` 断言低于底线的 `consolidateMaxTokens` 被提升（3000 → 4096）且 `configAlerts` 非空。**当 harness 包不可解析时必须 `t.skip()` 而非报错**（CI 情形），且**不能改变 `# tests` 计数**（check-release 依赖该计数）。
 - `npm run check`（`scripts/check-release.mjs`）契约：`package.json.version` == CHANGELOG 最新 `## <ver>` == README 两语版本行（`Current release: **X**` / `当前版本：**X**`）；README 声明的测试数（`runs N tests` / `运行 N 项测试`）== 实际 `node --test` 的 `# tests N`。**这些措辞是解析契约，改动措辞必须同步改脚本。**
 
 ## 7. 发布流程（0.2.8 起的标准动作）
@@ -79,7 +81,8 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 4. `npm run check` + `npm test` 全绿；
 5. `git commit`（信息含 release: vX.Y.Z 摘要）→ `git tag -a v<ver> -m <摘要>` → `git push origin main` + 推送标签。
 - 版本号/测试数/工具数任何一处与 README 不一致，`npm run check` 会红——这是特性，不是烦恼。
-- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11（更早版本未补标签）。
+- **改 schema 默认值时必须评估 user 层覆盖**：user 层优先级最高，旧版本固化过的旧默认值会继续覆盖新默认，使这次「修复」对已装实例完全无效（0.2.11 的 8192 就是这样被 user 层的 3000 压住的）。改默认值必须配套：运行时底线或迁移、CHANGELOG 写明升级影响与手工清理方式、README 的 Upgrade notes / 升级须知同步。
+- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11 / v0.2.12（更早版本未补标签）。
 
 ## 8. 部署（现状）
 
@@ -98,6 +101,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 | 0.1.2-rc.1 | `Session.events` 被 Surface 层替换（`snapshotEvents`/`deriveMessages`），`extractTurnText` 的 `.entries()` 在每次轮次摘要时抛 `Cannot read properties of undefined (reading entries)` | 迁移到 `agent.session.snapshotEvents(fromSeq)`（v0.2.9） |
 | 0.1.2-rc.1 | 启动时 `ctx.get('llm')` 返回 undefined，自动摘要静默跳过（`skips {"disabled":1}`、`llm calls: 0`、摘要永不更新） | 用 `ctx.inject(['llm'],…)` 等待服务（v0.2.10） |
 | 调优 | `consolidateMaxTokens` 默认 3000 装不下 ~8KB 有界摘要的输出，合并报 `LLM output reached max tokens`、摘要停更 | 默认提到 8192（schema 上限 16384；v0.2.11） |
+| **配置漂移** | Web 卡片以生效值初始化表单并整段 `settings.replace` 保存，**保存一次即把 22 个字段（含全部默认值）固化进 user 层**；user 层优先级高于 schema 默认，于是升级改默认值对已保存过卡片的实例完全无效（实测：0.2.11 后 `lastConsolidatedAt` 停 7 天、journal 游标 13/42，而工具/注入/端点全部正常） | 卡片只提交改动字段（`set`/`unset`）；端点把任何载荷归一化为最小补丁并改用 `settings.mutate`；`consolidateMaxTokens` 加运行时底线并上报 `configAlerts`；截断错误带键名与生效值（v0.2.12） |
 | 常态 | DSH pre-1.0，同一 `^0.1.x` 范围内 API 可破 | 升级前验证；用 host-wiring 守卫兜底 |
 
 **维护提示**：本文件是与代码平行的文档，改版本/工具数/CI/部署方式时同步更新；若与仓库不一致，以 package.json / lib / README / CHANGELOG 为准（并修本文件）。

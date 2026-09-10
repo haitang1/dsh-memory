@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.2.12 (2026-09-10)
+
+### Fix: stop settings saves from pinning defaults, and floor the consolidation budget
+
+Raising a schema default is not enough on its own: the user layer outranks the
+composition base and the schema, so a value written by an older release keeps
+overriding the new default. 0.2.11 raised `consolidateMaxTokens` to 8192, yet an
+install that had ever saved the Memory settings card still carried
+`consolidateMaxTokens: 3000` in its user layer and kept failing every merge with
+`dsh-memory: LLM output reached max tokens` — the summary never advanced while
+the plugin still loaded, served all 14 tools, and answered the settings endpoint
+(verified live: journal cursor stuck at 13/42, `lastConsolidatedAt` 7 days old).
+
+Root cause: the Web card seeded its form with the **resolved** value and saved
+the whole object through `settings.replace`, so a single save wrote all 22 fields
+— including every default — into the user layer.
+
+- **The card now persists only the fields you changed.** It posts a
+  `{ set, unset }` diff, and a field saved back at its default removes its
+  user-layer entry instead of re-pinning the default.
+- **The endpoint normalizes every payload into that minimal patch** and applies
+  it with `settings.mutate` (path-addressed `set`/`unset`) instead of
+  `settings.replace`, so the legacy full-section payload — including one from a
+  card cached in a browser — cannot pin defaults either.
+- **`consolidateMaxTokens` has a runtime floor** derived from `maxBytes`
+  (`min(16384, max(4096, ceil(maxBytes / 2)))`): a sub-floor value is lifted to
+  the floor rather than obeyed, because a budget that cannot emit the bounded
+  summary fails every merge. Larger configured values are still honored.
+- **The lift is observable**: `memory_stats` reports the effective
+  `summaryMaxTokens` / `consolidateMaxTokens` and a `configAlerts` array, the
+  plugin logs a warning, and `diagnostics.json` records it.
+- **Truncation failures now name the cause**: `LLM output reached max tokens
+  (consolidateMaxTokens=3000; raise it in the Memory settings card or remove the
+  user-layer override)`.
+- `scripts/check-release.mjs` resolves its root with `fileURLToPath`, so
+  `npm run check` runs on Windows instead of failing with `E:\E:\…`.
+- Guarded by new tests: minimal-patch saves, reset-to-default unset, the
+  set/unset protocol, malformed payloads, `defaults` in the snapshot, source
+  guards for `settings.mutate` / the token floor, and an `apply()` smoke that
+  asserts a sub-floor budget is lifted and reported. Suite is 71/71.
+- Docs: README (en/zh) gains an **Upgrade notes / 升级须知** section explaining
+  the three-layer resolution order and how to clear a stale override; AGENTS.md
+  records the release rule.
+
 ## 0.2.11 (2026-09-05)
 
 ### Fix: raise consolidateMaxTokens so consolidation fits the summary
