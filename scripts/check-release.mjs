@@ -77,9 +77,13 @@ if (typeof testScript !== 'string') {
   if (files.length === 0) {
     fail('scripts.test file list', 'at least one test file', '(none)')
   }
-  const result = spawnSync(process.execPath, ['--test', ...files], { encoding: 'utf8', cwd: root })
+  // Pin the TAP reporter: Node 25 defaults to `spec` (`\u2139 tests N`) whenever
+  // stdout is not a TTY, which this parser cannot read. `--test-reporter` exists
+  // on every Node this package supports (engines: >=20.3); the fallback pattern
+  // keeps the check readable if a runtime ever ignores the flag.
+  const result = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ...files], { encoding: 'utf8', cwd: root })
   const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`
-  const summary = output.match(/#\s*tests\s+(\d+)/)
+  const summary = output.match(/#\s*tests\s+(\d+)/) ?? output.match(/\u2139\s+tests\s+(\d+)/)
   if (summary === null) {
     fail('actual test summary ("# tests N")', 'a parseable summary', '(nothing matched; run npm test manually)')
   } else if (declared !== null && summary[1] !== declared) {
