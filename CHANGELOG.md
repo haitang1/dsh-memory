@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.2.13 (2026-09-24)
+
+### DSH 0.1.7 settings seam, alongside the 0.1.5 line
+
+DSH 0.1.7-rc.1 replaced the settings provider (`SettingsProvider` →
+`SettingsForms`) and generates an editable form only for `meta.volatile` schema
+fields, committing those edits straight into the running config instead of
+re-applying the plugin. Adapt to that line without dropping 0.1.5, which the
+live profile still runs:
+
+- `lib/volatile.js` (new, dependency-free): `volatileField()` marks a field
+  live-editable only where schemastery exposes `Schema#volatile` (the 0.1.5 line
+  has no such method, and calling it unconditionally would break plugin load
+  there); `isVolatileValue()` / `unboxConfigValue()` / `plainConfig()` read a
+  resolved config back as plain values, because a volatile field resolves to a
+  cosmokit Volatile *box* rather than the value. Boxes are recognized by their
+  globally registered write hook (`Symbol.for('cosmokit.volatile.write')`), so
+  no cosmokit import is required.
+- `Config` is built from marked fields; `memoryDir` and `seedFromAgentsMd` stay
+  ordinary because both are consumed at apply time and a save must re-apply the
+  plugin rather than commit live.
+- When the settings service exposes no `register()` (0.1.7), `resolved` is
+  re-derived from the row config and mirrored on every
+  `loader/volatile-update`, so a saved setting takes effect without a restart.
+- `lib/web.js` probes for this plugin's namespace (`memory` on 0.1.5, the
+  `dsh-memory` loader-row id on 0.1.7) instead of pinning one name, and mutates
+  the namespace it actually found.
+- `lib/automation.js` reads `agent-default-model` through `describe()` when the
+  provider no longer answers `get()`.
+- `lib/client.js` registers the 0.1.7 Plugins-page form on `plugins.row.config`
+  in addition to the 0.1.5 `settings.plugin.item` card, with a fallback for the
+  renamed icon family.
+- Suite 71 → 84: volatile-seam units, the namespace probe, both card
+  registrations, and a second `apply()` smoke for a 0.1.7-shaped service whose
+  boxed config is unboxed and re-read on a volatile commit.
+
+### Fix: `npm run check` on Node 25
+
+Node 25 defaults to the `spec` reporter whenever stdout is not a TTY, so the
+suite summary reads `ℹ tests N` and the release check's TAP-only pattern matched
+nothing — the check failed with "a parseable summary" while the suite itself was
+green. The check now spawns the suite with `--test-reporter=tap` (available on
+every Node this package supports) and keeps a fallback pattern for the spec
+summary.
+
 ## 0.2.12 (2026-09-10)
 
 ### Fix: stop settings saves from pinning defaults, and floor the consolidation budget
