@@ -83,6 +83,31 @@ async function postSettings(settings, payload, readDefaults) {
 
 const fakeCtx = { logger: { warn: () => {} } }
 
+test('settings card resolves the loader-row namespace on DSH 0.1.7 (no settings.register)', async () => {
+  // DSH 0.1.7-rc.1 removed SettingsProvider.register() and derives a plugin's
+  // settings namespace from its loader-row id (this bundle's cordis.patch.yml
+  // row is `dsh-memory`), so the card must probe for it instead of assuming the
+  // registered name `memory`.
+  const calls = []
+  const settings = {
+    writable: true,
+    describe: () => [{ ns: 'dsh-memory', value: { maxBytes: 8000 }, revision: 3 }],
+    async mutate(ns, ops, expectedRevision) { calls.push({ ns, ops, expectedRevision }) }
+  }
+  const handler = memorySettingsRouteHandler(fakeCtx, settings)
+
+  const res = fakeResponse()
+  await handler(fakeRequest('GET'), res)
+  assert.equal(res.status, 200)
+  assert.equal(JSON.parse(res.ended).value.settings.value.maxBytes, 8000)
+
+  const save = fakeResponse()
+  await handler(fakeRequest('POST', JSON.stringify({ action: 'save', expectedRevision: 3, set: { maxBytes: 4000 }, unset: [] }), { 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' }), save)
+  assert.equal(save.status, 200)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].ns, 'dsh-memory', 'saves must target whichever namespace the running DSH line exposes')
+})
+
 test('GET returns the memory settings snapshot', async () => {
   const { settings } = fakeSettings()
   const handler = memorySettingsRouteHandler(fakeCtx, settings)
@@ -401,4 +426,194 @@ test('client bundle loads in a browser-like sandbox, localizes, and registers th
   assert.ok(treeText.includes('t:loading') || treeText.includes('t:unavailable'), 'card copy must come from t()')
   assert.ok(effects.some((entry) => entry.label && entry.label.includes('locale')))
   assert.ok(effects.some((entry) => entry.label && entry.label.includes('settings card styles')))
+})
+
+test('client bundle registers the DSH 0.1.7 Plugins-page form on the row-config slot', () => {
+  // 0.1.7 has no `settings.plugin.item` slot and no provider-side namespace: the
+  // form is the configuration of the bundle's own row, registered into
+  // `plugins.row.config` under `<bundle>#<rowId>` and gated by configForms.
+  const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+
+  const fakeReact = {
+    useState: (initial) => [initial, () => {}],
+    useEffect: () => {},
+    createElement: (type, props, ...children) => ({ type, props, children })
+  }
+
+  /** A stand-in for the 0.1.7 primitives' generic settings-form toolkit. */
+  const modelCalls = { constructed: 0, specs: null, fields: [], binds: 0, disposed: 0 }
+  /** A small live model: drafts and the dirty flag move, listeners fire. */
+  class FakeSettingsFormModel {
+    constructor(scope, specs) {
+      modelCalls.constructed += 1
+      modelCalls.scope = scope
+      modelCalls.specs = specs
+      this.scope = scope
+      this.drafts = {}
+      this.dirtyFlag = false
+      this.listeners = []
+    }
+    bind(project) {
+      modelCalls.binds += 1
+      this.store = { getSnapshot: () => project(), subscribe: (listener) => { this.listeners.push(listener); return () => {} } }
+      return this.store
+    }
+    shell() {
+      return { available: true, writable: true, dirty: this.dirtyFlag, invalid: false, saving: false, failed: false }
+    }
+    field(name) {
+      modelCalls.fields.push(name)
+      const text = Object.prototype.hasOwnProperty.call(this.drafts, name) ? this.drafts[name] : `value:${name}`
+      return { text, overridden: false, invalid: false }
+    }
+    actions() {
+      const self = this
+      return {
+        edit: (field, text) => { self.drafts[field] = text; self.dirtyFlag = true; self.publish() },
+        resetField: (field) => { self.drafts[field] = ''; self.dirtyFlag = true; self.publish() },
+        save: () => { self.dirtyFlag = false; self.publish() },
+        discard: () => { self.drafts = {}; self.dirtyFlag = false; self.publish() }
+      }
+    }
+    publish() { for (const listener of this.listeners) listener() }
+    dispose() { modelCalls.disposed += 1 }
+  }
+  /** The generic primitives the card renders, as identity-checkable stubs. */
+  const SettingsFormStub = (props) => ({ type: 'SettingsForm', props })
+  const SettingsValueFieldStub = (props) => ({ type: 'SettingsValueField', props })
+  const SettingsSecretFieldStub = (props) => ({ type: 'SettingsSecretField', props })
+  const primitives = {
+    IconChevronDownOutline14: (props) => ({ type: 'svg', props: props || {} }),
+    SettingsFormModel: FakeSettingsFormModel,
+    settingsNumberField: (field) => ({ field, format: () => '', parse: () => undefined }),
+    settingsTextField: (field) => ({ field, format: () => '', parse: () => undefined }),
+    SettingsForm: SettingsFormStub,
+    SettingsValueField: SettingsValueFieldStub,
+    SettingsSecretField: SettingsSecretFieldStub
+  }
+  const requireMock = (spec) => {
+    if (spec === 'react') return fakeReact
+    if (spec === '@deepseek-ai/dsh-client-ui-primitives') return primitives
+    throw new Error(`unexpected require: ${spec}`)
+  }
+
+  let loaded = null
+  const sandbox = { window: { __ModuleLoader__: { load(spec) { loaded = spec } } } }
+  vm.createContext(sandbox)
+  vm.runInContext(source, sandbox, { filename: 'client.js' })
+  assert.equal(loaded.id, '@dsh-external/dsh-memory')
+  const exports = loaded.factory(requireMock)
+
+  const injected = []
+  const registrations = []
+  const gets = []
+  const served = []
+  const localeRegistrations = []
+  const fakeCtx = {
+    effect(fn) {
+      const disposer = fn()
+      return () => { if (typeof disposer === 'function') disposer() }
+    },
+    locale: {
+      register(ns, dicts) { localeRegistrations.push({ ns, dicts }); return () => {} },
+      bind: () => (key) => `t:${key}`
+    },
+    slots: {
+      inject(key, callback) {
+        injected.push(key)
+        if (key === 'settings.plugin.item') return () => {} // absent on 0.1.7
+        registrations.push(callback())
+        return () => {}
+      },
+      register: (options, component) => ({ options, component })
+    },
+    inject(names, callback) {
+      assert.deepEqual([...names], ['configForms', 'slots'], 'must wait for the settings-forms service')
+      callback(this)
+    },
+    configForms: {
+      get(ns) { gets.push(ns); return { __scope: ns } },
+      whileServed(namespaces, register) { served.push([...namespaces]); return register(new Set(namespaces)) }
+    }
+  }
+  exports.apply(fakeCtx)
+
+  assert.deepEqual(gets, ['dsh-memory'], 'the form binds the settings namespace the Host serves')
+  assert.deepEqual(served, [['dsh-memory']])
+  assert.equal(registrations.length, 1)
+  const registration = registrations[0]
+  assert.equal(registration.options.name, 'plugins.row.config')
+  assert.equal(registration.options.key, '@dsh-external/dsh-memory#dsh-memory')
+  assert.equal(registration.options.locale, 'dsh-memory')
+  assert.equal(registration.options.label(), 't:nav')
+  assert.equal(modelCalls.constructed, 1)
+
+  const face = registration.options.inject()
+  assert.ok(face.hooks && face.hooks.memoryForm, 'the form hook must be injected')
+  for (const action of ['edit', 'resetField', 'save', 'discard']) {
+    assert.equal(typeof face[action], 'function', `the form must inject ${action}`)
+  }
+
+  // Summary view is the row's one-liner; page view is the settings form. The slot
+  // framework injects the form hook for both views, as it does for the core cards.
+  const t = (key) => `t:${key}`
+  const useMemoryForm = (select) => select(face.hooks.memoryForm.getSnapshot())
+  assert.equal(registration.component({ view: 'summary', t, useMemoryForm }), 't:desc')
+
+  const props = { view: 'page', t, useMemoryForm, ...face }
+  const tree = registration.component(props)
+  assert.equal(tree.type, SettingsFormStub, 'the page view renders the shared settings form')
+  assert.equal(tree.props.onSave, face.save)
+  assert.equal(tree.props.onDiscard, face.discard)
+  assert.equal(tree.props.labels.save, 't:save')
+  // React accepts one array child and flattens it; the stub records it as one arg.
+  const controls = tree.children.flat()
+  assert.equal(controls.length, 20, 'every live-editable field must render a control')
+  // The embeddings API key is masked: a secret control with a configured badge,
+  // while every other field is a plain value control.
+  const secrets = controls.filter((child) => child.type === SettingsSecretFieldStub)
+  const values = controls.filter((child) => child.type === SettingsValueFieldStub)
+  assert.equal(secrets.length, 1, 'exactly one field is a secret control')
+  assert.equal(secrets[0].props.id, 'dsh-memory-embeddingApiKey')
+  assert.equal(secrets[0].props.configured, true, 'a non-empty staged value reads as configured')
+  assert.equal(secrets[0].props.stateLabel, 't:formSecretSet')
+  assert.equal(typeof secrets[0].props.onEdit, 'function')
+  assert.equal(secrets[0].props.onReset, undefined, 'the secret control has no reset affordance')
+  assert.equal(values.length, 19)
+  for (const child of values) {
+    assert.match(child.props.label, /^t:\w+Label$/, 'each control must be labelled from the dictionary')
+    assert.equal(typeof child.props.onEdit, 'function')
+    assert.equal(typeof child.props.onReset, 'function')
+  }
+  // The two structural fields are not part of the served namespace.
+  const rendered = controls.map((child) => child.props.id)
+  assert.ok(!rendered.includes('dsh-memory-memoryDir'), 'memoryDir is not live-editable')
+  assert.ok(!rendered.includes('dsh-memory-seedFromAgentsMd'), 'seedFromAgentsMd is not live-editable')
+  assert.ok(rendered.includes('dsh-memory-maxBytes'))
+
+  // The badge previews the save. All three states need copy in both dictionaries.
+  assert.equal(typeof localeRegistrations[0].dicts.zh.formSecretPending, 'string')
+  assert.equal(localeRegistrations[0].dicts.en.formSecretPending, 'Pending save')
+  // Object.keys, not deepEqual: the projection comes from the VM realm, so its
+  // object literal has a different Object.prototype than this test's.
+  assert.deepEqual(Object.keys(face.hooks.memoryForm.getSnapshot().pendingEdits), [], 'nothing is pending before an edit')
+
+  // Stage an edit on the masked field: the form goes dirty and that field is pending.
+  face.edit('embeddingApiKey', 'sk-live-value')
+  const staged = face.hooks.memoryForm.getSnapshot()
+  assert.equal(staged.dirty, true)
+  assert.equal(staged.pendingEdits.embeddingApiKey, true)
+  const pendingTree = registration.component({ ...props, useMemoryForm: (select) => select(staged) })
+  const pendingSecret = pendingTree.children.flat().find((child) => child.type === SettingsSecretFieldStub)
+  assert.equal(pendingSecret.props.stateLabel, 't:formSecretPending', 'a staged secret reads as pending, not saved')
+  assert.equal(pendingSecret.props.text, 'sk-live-value')
+
+  // A save that lands clears the pending set, and the badge falls back to configured.
+  face.save()
+  const saved = face.hooks.memoryForm.getSnapshot()
+  assert.equal(saved.dirty, false)
+  assert.deepEqual(Object.keys(saved.pendingEdits), [], 'a landed save clears the pending set')
+  const savedTree = registration.component({ ...props, useMemoryForm: (select) => select(saved) })
+  const savedSecret = savedTree.children.flat().find((child) => child.type === SettingsSecretFieldStub)
+  assert.equal(savedSecret.props.stateLabel, 't:formSecretSet')
 })

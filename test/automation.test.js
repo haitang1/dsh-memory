@@ -43,6 +43,21 @@ test('resolveSummarizeRoute falls back to the agent-default-model settings names
   assert.deepEqual(route, { provider: 'deepseek-official', model: 'deepseek-v4-flash' })
 })
 
+test('resolveSummarizeRoute reads the namespace via describe() on DSH 0.1.7 (no settings.get)', () => {
+  // DSH 0.1.7-rc.1 replaced the settings provider and dropped `get()`: the value
+  // is only reachable through the descriptors returned by `describe()`.
+  const route = resolveSummarizeRoute(resolved(), {
+    agentDefaultModel: undefined,
+    settings: {
+      describe: () => [
+        { ns: 'locale', value: {} },
+        { ns: 'agent-default-model', value: { provider: 'deepseek-official', model: 'deepseek-v4-flash' } }
+      ]
+    }
+  })
+  assert.deepEqual(route, { provider: 'deepseek-official', model: 'deepseek-v4-flash' })
+})
+
 test('resolveSummarizeRoute returns undefined when no route is available', () => {
   assert.equal(resolveSummarizeRoute(resolved(), { agentDefaultModel: undefined, settings: undefined }), undefined)
   assert.equal(resolveSummarizeRoute(resolved(), { agentDefaultModel: { currentSelection: () => undefined }, settings: { get: () => undefined } }), undefined)

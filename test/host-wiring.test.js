@@ -64,6 +64,125 @@ test('host wiring: settings saves patch the namespace and keep a consolidation t
     'must report a lifted budget through diagnostics and memory_stats')
 })
 
+test('host wiring: marks config fields volatile so DSH 0.1.7 generates a settings form', async () => {
+  // dsh-settings builds a form only for `meta.volatile` fields, and the Loader then
+  // commits edits into the running config's boxes instead of re-applying the plugin.
+  const source = await readFile(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.match(source, /volatileField\(/, 'config fields must be marked live-editable where the schema supports it')
+  assert.match(source, /plainConfig\(/, 'boxed volatile values must be unboxed before use')
+  assert.match(source, /loader\/volatile-update/,
+    'must mirror a Loader volatile commit into the resolved config, or a saved setting would do nothing')
+})
+
+// apply() smoke on the DSH 0.1.7 settings seam: SettingsForms has no
+// `register()`. The plugin must wire up without one -- the namespace becomes the
+// loader-row id and the row config IS the settings document -- instead of
+// throwing inside the inject callback (which silently killed the settings card
+// and left the plugin without a namespace).
+test('host wiring: apply() wires up on DSH 0.1.7, where settings.register() no longer exists', async (t) => {
+  let plugin
+  try {
+    plugin = await import('../lib/index.js')
+  } catch {
+    t.skip('harness packages (@deepseek-ai/dsh-llm, @deepseek-ai/dsh-tools) not resolvable here')
+    return
+  }
+
+  const tmpDir = mkdtempSync(join(tmpdir(), 'dsh-memory-smoke-017-'))
+  const cleanups = []
+  const hook = { tools: [], skills: [], routes: [], systemPrompt: null, events: {} }
+
+  // A cosmokit Volatile box, as DSH 0.1.7 hands a volatile field to apply(): the
+  // value is only reachable through get(), and the Loader commits later edits by
+  // mutating it in place. `memoryDir` stays a plain value on purpose -- it is a
+  // structural field, so the Loader re-applies the plugin instead of hot-committing.
+  let liveRawArchiveMaxBytes = 4096
+  const volatileBox = (read) => {
+    const box = { get: read }
+    box[Symbol.for('cosmokit.volatile.write')] = () => {}
+    return box
+  }
+  const boxedConfig = {
+    memoryDir: tmpDir,
+    rawArchiveMaxBytes: volatileBox(() => liveRawArchiveMaxBytes),
+    autoSummarize: false,
+    seedFromAgentsMd: false
+  }
+
+  // The 0.1.7 service face, verbatim: describe/writable/mutate and no register.
+  const settings017 = {
+    describe: () => [{ ns: 'dsh-memory', value: {}, base: {}, user: {}, revision: 0 }],
+    writable: true,
+    mutate: async () => {}
+  }
+
+  const fakeCtx = {
+    logger: { info: () => {}, warn: () => {}, error: () => {} },
+    settings: settings017,
+    tools: null,
+    skills: null,
+    webServer: null,
+    get(name) {
+      if (name === 'systemPrompt') {
+        return {
+          context: (cfg) => {
+            hook.systemPrompt = cfg
+            return () => {}
+          }
+        }
+      }
+      return undefined
+    },
+    inject(names, cb) {
+      if (names.includes('settings')) this.settings = settings017
+      if (names.includes('tools')) this.tools = { register: (def) => { hook.tools.push(def); return () => {} } }
+      if (names.includes('skills')) this.skills = { register: (skill) => { hook.skills.push(skill); return () => {} } }
+      if (names.includes('webServer')) this.webServer = { register: (route) => { hook.routes.push(route); return () => {} } }
+      cb(this)
+    },
+    on(event, handler) {
+      hook.events[event] = handler
+      return () => {}
+    },
+    effect(fn) {
+      const dispose = fn()
+      if (typeof dispose === 'function') cleanups.push(dispose)
+      return dispose
+    }
+  }
+
+  try {
+    assert.doesNotThrow(
+      () => plugin.apply(fakeCtx, boxedConfig),
+      'apply() must not throw when the settings provider has no register()'
+    )
+    assert.equal(hook.tools.length, TOOL_NAMES.length, 'all memory_* tools must still be registered')
+    assert.ok(hook.skills.some((skill) => skill.name === 'auto-memory'), 'auto-memory skill must still be registered')
+    assert.equal(hook.systemPrompt.name, 'dsh-memory', 'systemPrompt.context must still be installed')
+    assert.ok(hook.routes.length >= 1, 'the same-origin settings route must still be registered')
+
+    // Volatile fields arrive boxed: an unhandled box would fall back to the schema
+    // default, so reading the real value back proves the unboxing works.
+    const stats = hook.tools.find((def) => def.name === 'memory_stats')
+    const before = await stats.execute({}, { signal: { aborted: false } })
+    assert.equal(before.memoryDir, tmpDir, 'the structural memoryDir must be used as given')
+    assert.equal(before.rawArchiveMaxBytes, 4096, 'a boxed rawArchiveMaxBytes must be unboxed')
+
+    // A 0.1.7 settings save mutates the box and emits loader/volatile-update instead
+    // of re-applying the plugin; the plugin must pick the new value up.
+    assert.equal(typeof hook.events['loader/volatile-update'], 'function',
+      'must subscribe to loader/volatile-update so a saved setting takes effect')
+    liveRawArchiveMaxBytes = 8192
+    hook.events['loader/volatile-update']()
+    const after = await stats.execute({}, { signal: { aborted: false } })
+    assert.equal(after.rawArchiveMaxBytes, 8192, 'a volatile edit must reach the resolved config')
+  } finally {
+    for (const dispose of cleanups) {
+      try { dispose() } catch { /* ignore disposal errors */ }
+    }
+    rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
 // apply() smoke: drives the real plugin entry through a fake cordis ctx and
 // asserts the host wiring actually registers everything. Imports the harness
 // packages (dsh-llm / dsh-tools) transitively, so it only runs where they are
@@ -79,7 +198,7 @@ test('host wiring: apply() registers the memory settings, 14 tools, the skill, a
 
   const tmpDir = mkdtempSync(join(tmpdir(), 'dsh-memory-smoke-'))
   const cleanups = []
-  const hook = { settings: null, tools: [], skills: [], routes: [], systemPrompt: null, turnStopping: null }
+  const hook = { settings: null, tools: [], skills: [], routes: [], systemPrompt: null, events: {} }
 
   const fakeSettings = {
     register(namespace, config, opts) {
@@ -119,7 +238,7 @@ test('host wiring: apply() registers the memory settings, 14 tools, the skill, a
       cb(this)
     },
     on(event, handler) {
-      hook.turnStopping = handler
+      hook.events[event] = handler
       return () => {}
     },
     effect(fn) {
@@ -138,7 +257,7 @@ test('host wiring: apply() registers the memory settings, 14 tools, the skill, a
     assert.ok(hook.skills.some((skill) => skill.name === 'auto-memory'), 'auto-memory skill must be registered')
     assert.equal(hook.systemPrompt.name, 'dsh-memory', 'systemPrompt.context must be installed with name dsh-memory')
     assert.equal(hook.systemPrompt.order, 2000)
-    assert.equal(typeof hook.turnStopping, 'function', 'agent/turn-stopping handler must be subscribed')
+    assert.equal(typeof hook.events['agent/turn-stopping'], 'function', 'agent/turn-stopping handler must be subscribed')
     assert.ok(hook.routes.length >= 1, 'the same-origin settings route must be registered')
 
     // A user-layer override below the safe floor must be lifted (not obeyed) and

@@ -173,15 +173,16 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## 开发与测试
 
-`npm test` 运行 71 项测试（node:test）：
+`npm test` 运行 84 项测试（node:test）：
 
 - `test/store.test.js` —— 存储语义、journal、历史、归档、作用域；
-- `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链、`extractMessageText`（user/assistant 事件结构）；
+- `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链（含 DSH 0.1.7 上经 `describe()` 的读取）、`extractMessageText`（user/assistant 事件结构）；
 - `test/browser.test.js` —— 交互式 HTML 浏览器的快照渲染；
-- `test/web-settings.test.js` —— 设置端点生命周期（GET/POST、403/409、体积限制），以及 VM 沙箱加载客户端 bundle 断言 `settings.plugin.item` 卡片注册；
+- `test/web-settings.test.js` —— 设置端点生命周期（GET/POST、403/409、体积限制）、在 `memory` 与 0.1.7 加载行 id 之间探测命名空间，以及 VM 沙箱加载客户端 bundle 断言两种卡片注册（0.1.5 的 `settings.plugin.item` 卡片与 0.1.7 的 `plugins.row.config` 表单）；
+- `test/volatile.test.js` —— DSH 0.1.7 的 volatile 接缝：仅在 schema 库支持时把字段标记为可实时编辑、按全局注册的写钩子识别 cosmokit Volatile 盒、以及把整份解析后的配置读回为普通值；
 - `test/embedding.integration.test.js` —— fake `/embeddings` 服务 + 本地哈希向量；
 - `test/mcp.integration.test.js` —— 真实 MCP 子进程往返；
-- `test/host-wiring.test.js` —— 守卫 `lib/index.js` 的宿主对接面：裸字符串设置命名空间、`settingsNamespace` 辅助导出缺失、Surface 层 `snapshotEvents`（而非 `Session.events`）、`llm` 服务经 `inject(['llm'])` 等待（而非启动时 `ctx.get`）、`settings.mutate` 保存路径（不再全量 `replace`）与合并 token 底线、14 个工具清单、`agent/turn-stopping`、`systemPrompt.context` 钩子、auto-memory 技能，以及经 fake cordis ctx 的 `apply()` 冒烟（同时断言低于底线的 `consolidateMaxTokens` 被提升并上报；零依赖 CI 中跳过）。
+- `test/host-wiring.test.js` —— 守卫 `lib/index.js` 的宿主对接面：裸字符串设置命名空间、`settingsNamespace` 辅助导出缺失、Surface 层 `snapshotEvents`（而非 `Session.events`）、`llm` 服务经 `inject(['llm'])` 等待（而非启动时 `ctx.get`）、`settings.mutate` 保存路径（不再全量 `replace`）与合并 token 底线、volatile 配置标记与 `loader/volatile-update` 镜像、14 个工具清单、`agent/turn-stopping`、`systemPrompt.context` 钩子、auto-memory 技能，以及两条经 fake cordis ctx 的 `apply()` 冒烟（0.1.5 带 `register()` 的提供方，与 0.1.7 无 `register()`、需解盒并响应 volatile 提交的服务），均断言低于底线的 `consolidateMaxTokens` 被提升并上报（零依赖 CI 中跳过）。
 
 架构与机制说明见 [`docs/DESIGN.md`](docs/DESIGN.md)；部署状态见 [`docs/STATUS.md`](docs/STATUS.md)。
 

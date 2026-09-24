@@ -190,15 +190,16 @@ Tools accept a `scope` argument (`global` | `workspace` | `project`); the projec
 
 ## Development & testing
 
-`npm test` runs 71 tests (node:test):
+`npm test` runs 84 tests (node:test):
 
 - `test/store.test.js` — store semantics, journal, history, archiving, scopes;
-- `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain, and `extractMessageText` (user/assistant event shapes);
+- `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain (including the `describe()`-based read on DSH 0.1.7), and `extractMessageText` (user/assistant event shapes);
 - `test/browser.test.js` — the interactive HTML browser snapshot rendering;
-- `test/web-settings.test.js` — the settings endpoint lifecycle (GET/POST, 403/409, body limits) plus a VM-sandbox load of the client bundle asserting the `settings.plugin.item` card registration;
+- `test/web-settings.test.js` — the settings endpoint lifecycle (GET/POST, 403/409, body limits), the namespace probe that finds `memory` or the 0.1.7 loader-row id, plus VM-sandbox loads of the client bundle asserting both card registrations (the 0.1.5 `settings.plugin.item` card and the 0.1.7 `plugins.row.config` form);
+- `test/volatile.test.js` — the DSH 0.1.7 volatile seam: marking a schema field live-editable only where the schema library supports it, recognizing a cosmokit Volatile box by its globally registered write hook, and reading a whole resolved config back as plain values;
 - `test/embedding.integration.test.js` — fake `/embeddings` server + local hashed vectors;
 - `test/mcp.integration.test.js` — real MCP child-process round-trips;
-- `test/host-wiring.test.js` — guards the harness-facing surface of `lib/index.js`: bare-string settings namespace, the removed `settingsNamespace` helper absent, the Surface layer (`snapshotEvents`) instead of `Session.events`, the `llm` service waited for via `inject(['llm'])` instead of a boot-time `ctx.get`, the `settings.mutate` save path (no whole-section `replace`) with a consolidation token floor, the 14-tool list, `agent/turn-stopping`, the `systemPrompt.context` hook, the auto-memory skill, plus an `apply()` smoke through a fake cordis ctx that also asserts a sub-floor `consolidateMaxTokens` is lifted and reported (skipped in a zero-dependency CI).
+- `test/host-wiring.test.js` — guards the harness-facing surface of `lib/index.js`: bare-string settings namespace, the removed `settingsNamespace` helper absent, the Surface layer (`snapshotEvents`) instead of `Session.events`, the `llm` service waited for via `inject(['llm'])` instead of a boot-time `ctx.get`, the `settings.mutate` save path (no whole-section `replace`) with a consolidation token floor, the volatile config marking plus the `loader/volatile-update` mirror, the 14-tool list, `agent/turn-stopping`, the `systemPrompt.context` hook, the auto-memory skill, plus two `apply()` smokes through a fake cordis ctx (the 0.1.5 provider with `register()`, and the 0.1.7 service without it whose boxed config is unboxed and re-read on a volatile commit), each asserting a sub-floor `consolidateMaxTokens` is lifted and reported (skipped in a zero-dependency CI).
 
 The architecture and mechanism notes live in [`docs/DESIGN.md`](docs/DESIGN.md); deployment status in [`docs/STATUS.md`](docs/STATUS.md).
 
