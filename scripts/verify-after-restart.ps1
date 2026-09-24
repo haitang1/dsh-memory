@@ -23,15 +23,14 @@ $ErrorActionPreference = 'Stop'
 $node = 'C:\Program Files\nodejs\node.exe'
 if (-not (Test-Path -LiteralPath $node)) { $node = 'node' }
 
+# Enumerate lib/** rather than listing modules by hand: a hardcoded list missed
+# lib/volatile.js in 0.2.13, so the verifier would have checked a deployed copy
+# that could not even import its own entry point.
 $files = @(
-  'lib\index.js',
-  'lib\store.js',
-  'lib\browser.js',
-  'lib\client.js',
-  'lib\web.js',
-  'lib\automation.js',
-  'lib\types\index.d.ts',
-  'lib\types\client.d.ts',
+  Get-ChildItem -LiteralPath (Join-Path $SourceDir 'lib') -Recurse -File |
+    Where-Object { $_.Name -like '*.js' -or $_.Name -like '*.d.ts' } |
+    ForEach-Object { $_.FullName.Substring($SourceDir.Length).TrimStart('\', '/') }
+) + @(
   'bin\dsh-memory-mcp.mjs',
   'package.json',
   'README.md',

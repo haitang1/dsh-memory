@@ -25,15 +25,16 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$files = @(
-  'lib\index.js',
-  'lib\store.js',
-  'lib\browser.js',
-  'lib\client.js',
-  'lib\web.js',
-  'lib\automation.js',
-  'lib\types\index.d.ts',
-  'lib\types\client.d.ts',
+# Every lib module ships together. A hardcoded list silently missed a new file
+# (lib/volatile.js in 0.2.13) and would have deployed an index.js that imports a
+# module which was never copied — enumerate the directory instead.
+$libFiles = @(
+  Get-ChildItem -LiteralPath (Join-Path $SourceDir 'lib') -Recurse -File |
+    Where-Object { $_.Name -like '*.js' -or $_.Name -like '*.d.ts' } |
+    ForEach-Object { $_.FullName.Substring($SourceDir.Length).TrimStart('\', '/') }
+)
+
+$files = $libFiles + @(
   'bin\dsh-memory-mcp.mjs',
   'package.json',
   'README.md',
