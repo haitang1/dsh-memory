@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.2.14 (2026-09-29)
+
+### Verified on DSH 0.2.0-rc.1; peer ranges extended
+
+DSH 0.2.0-rc.1 keeps the settings model 0.1.7 introduced (`SettingsForms`, the
+loader-row config as the settings document, forms only for `meta.volatile`
+fields) and every integration point this plugin uses, so 0.2.13 runs unchanged
+on it. Verified live rather than by semver alone — a 0.1.x → 0.2.x move falls
+outside the previous `^0.1.2-rc.1` range by construction, and this plugin's own
+rule is that a range change follows a real check:
+
+- Load: `diagnostics.json` reports all 14 `memory_*` tools, `skillRegistered:
+  true`, empty `toolErrors`.
+- Seam: `GET /_dsh/memory/settings` returns 200 with schema `defaults`; a
+  same-origin save still normalizes to a minimal patch and persists through
+  `settings.mutate` (on this line the loader-row config *is* the settings
+  document).
+- APIs present in 0.2.0-rc.1: `dsh-session` `snapshotEvents`/`deriveMessages`,
+  `dsh-llm` `createUserMessage`, `dsh-tools` `defineTool`, `dsh-settings`
+  `SettingsForms`/`describe()`/`mutate()`. `settings.register()` is gone, which
+  is exactly the path the plugin already takes when it is absent.
+- Events: `agent/turn-stopping` (emitted by `dsh-agent-loop`) and
+  `loader/volatile-update` (declared by `cordis-plugin-loader`) both remain.
+- Forms: `@deepseek-ai/schemastery` 3.18.4 exposes `Schema#volatile`, so the
+  0.2.0 settings-form path is active.
+- End to end: a memory write triggered consolidation on 0.2.0-rc.1 —
+  `llm calls: 1 (10251 ms, 0 failures)`, summary v168 → v169, journal cursor
+  caught up, `errors: 0`.
+
+`peerDependencies` for `dsh-llm` / `dsh-settings` / `dsh-tools` become
+`^0.1.2-rc.1 || ^0.2.0-rc.1`, so both validated lines install cleanly; measured
+on the 0.2.0 line: `cordis` 4.0.4, `schemastery` 3.18.4.
+
 ## 0.2.13 (2026-09-24)
 
 ### DSH 0.1.7 settings seam, alongside the 0.1.5 line
