@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.4.0 (2026-09-30)
+
+### Capture compaction recaps, redact the embeddings key, and report live counters
+
+**Compaction recaps enter memory.** Distillation only reads a turn when it
+ends, so content that compaction replaced mid-turn could be missed when a long
+turn or a resumed session continued on the new surface. The plugin now listens
+to `session/event`, filters to `compaction/summary` with a single type compare,
+and appends that event's plan — which is already a decision-focused recap,
+written by the summarize route — as a rollout block via the new pure
+`formatCompactionSummary` (≤2000 chars, `[compaction summary (shadowed ~N tokens)]`
+marker, deduplicated per session seq, no extra LLM call). It rides
+`autoSummarize`, so no new config key is added.
+
+**`embeddingApiKey` no longer crosses the settings endpoint.** That endpoint is
+same-origin and needs no token, so any local process could read the key; the
+cause was `SettingsForms.describe()` returning secrets unless asked for the
+redacted view. Now:
+
+- the schema marks the field `role('secret')` through the new `secretField`
+  helper, feature-detected so the 0.1.5 line (no `Schema#role`) keeps the plain
+  field instead of failing to load;
+- `lib/web.js` reads `describe({ redactSecrets: true })`, so the key is absent
+  from `value`/`base`/`user`, and the `secrets` sidecar is passed through so the
+  card can still say a key is stored ("leave blank to keep it");
+- an explicit `unset` still reaches the seam. Redaction removes the field from
+  the `user` layer too, so ownership cannot be judged from the snapshot and the
+  explicit clear is forwarded unconditionally — a no-op when nothing owns it.
+
+**Observability and distillation quality.** Every consolidation now merges the
+live `llmStats` (calls/ms/failures), `summarizeSkips`, `lastSummarizeSkip` and
+`summaryVersion` into `diagnostics.json`, so the documented post-restart check
+shows the pipeline's real state instead of only the boot-time tool list. The
+consolidation prompt gains explicit dedup/conflict rules (fold near-identical
+facts, keep the newer wording, one fact per bullet, stable section names).
+README (en/zh) documents why the standalone MCP server deliberately serves nine
+tools while the other five are defined by host surfaces.
+
+Suite 90 → 94 (`formatCompactionSummary`, `secretField`, and the diagnostics
+guard).
+
 ## 0.3.2 (2026-09-30)
 
 ### A larger default memory, and a token cap for what one prompt pays

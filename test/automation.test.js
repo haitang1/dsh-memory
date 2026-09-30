@@ -3,12 +3,15 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import {
   AUTO_MEMORY_SKILL,
+  COMPACTION_EXCERPT_CHARS,
   estimateTokens,
   extractMessageText,
+  formatCompactionSummary,
   formatSubagentResult,
   formatToolCall,
   formatToolResult,
   resolveSummarizeRoute,
+  COMPACTION_EXCERPT_MIN_CHARS,
   SUBAGENT_EXCERPT_CHARS,
   SUBAGENT_EXCERPT_MIN_CHARS,
   TOOL_DIGEST_ENTRY_CHARS,
@@ -134,6 +137,25 @@ test('formatToolResult reports status and the reason or first text block', () =>
   assert.equal(formatToolResult({ message: { content: [] } }), '[tool result] ok')
   assert.equal(formatToolResult(undefined), '')
   assert.equal(formatToolResult('not-an-object'), '')
+})
+
+test('formatCompactionSummary bounds the recap and names the shadowed cost', () => {
+  const body = formatCompactionSummary({
+    summary: [{ type: 'text', text: 'x'.repeat(COMPACTION_EXCERPT_MIN_CHARS) }],
+    shadowedTokenCount: 12345,
+    shadowedSeqs: [1, 2, 3]
+  })
+  assert.ok(body.startsWith('[compaction summary (shadowed ~12345 tokens)]\n'))
+  assert.ok(formatCompactionSummary({
+    summary: [{ type: 'text', text: 'y'.repeat(COMPACTION_EXCERPT_CHARS * 2) }]
+  }).length < COMPACTION_EXCERPT_CHARS + 40)
+  // Without a token count the marker still identifies the block.
+  assert.ok(formatCompactionSummary({ summary: [{ type: 'text', text: 'z'.repeat(COMPACTION_EXCERPT_MIN_CHARS) }] })
+    .startsWith('[compaction summary]\n'))
+  assert.equal(formatCompactionSummary({ summary: [{ type: 'text', text: 'too short' }] }), '')
+  assert.equal(formatCompactionSummary({ summary: [] }), '')
+  assert.equal(formatCompactionSummary({}), '')
+  assert.equal(formatCompactionSummary(undefined), '')
 })
 
 test('formatSubagentResult bounds a settled child\u2019s final answer', () => {

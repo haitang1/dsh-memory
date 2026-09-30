@@ -33,12 +33,23 @@ function fakeSettings() {
     revision: 7,
     base: undefined,
     user: undefined,
-    describe() {
+    describe(options) {
+      // The Host removes schema `role('secret')` fields from a redacting read
+      // and reports every declared secret slot through the sidecar, set or not.
+      const redacted = options && options.redactSecrets === true
+      const strip = (input) => {
+        if (!redacted || input === undefined) return input
+        const copy = { ...input }
+        delete copy.embeddingApiKey
+        return copy
+      }
+      const secrets = [{ path: ['embeddingApiKey'], set: settings.user !== undefined && typeof settings.user.embeddingApiKey === 'string' && settings.user.embeddingApiKey.length > 0 }]
       return [{
         ns: 'memory',
-        value: settings.value,
-        ...settings.base === undefined ? {} : { base: settings.base },
-        ...settings.user === undefined ? {} : { user: settings.user },
+        value: strip(settings.value),
+        ...redacted ? { secrets } : {},
+        ...settings.base === undefined ? {} : { base: strip(settings.base) },
+        ...settings.user === undefined ? {} : { user: strip(settings.user) },
         revision: settings.revision
       }]
     },
@@ -119,6 +130,28 @@ test('GET returns the memory settings snapshot', async () => {
   assert.equal(payload.value.settings.value.maxBytes, 8000)
   assert.equal(payload.value.settings.revision, 7)
   assert.equal(res.headers['cache-control'], 'no-store')
+})
+
+test('GET redacts the embeddings key and a save can clear it explicitly', async () => {
+  const { settings, calls } = fakeSettings()
+  settings.value = { ...settings.value, embeddingApiKey: 'sk-live-secret' }
+  settings.user = { embeddingApiKey: 'sk-live-secret' }
+  const handler = memorySettingsRouteHandler(fakeCtx, settings)
+  const res = fakeResponse()
+  await handler(fakeRequest('GET'), res)
+  const payload = JSON.parse(res.ended)
+  assert.equal(payload.value.settings.value.embeddingApiKey, undefined,
+    'the stored key must not cross the endpoint')
+  assert.deepEqual(payload.value.settings.secrets, [{ path: ['embeddingApiKey'], set: true }],
+    'the redaction sidecar must still tell the card a key is stored')
+
+  const cleared = fakeResponse()
+  const body = JSON.stringify({ action: 'save', expectedRevision: 7, set: {}, unset: ['embeddingApiKey'] })
+  await handler(fakeRequest('POST', body, { 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' }), cleared)
+  const after = JSON.parse(cleared.ended)
+  assert.equal(after.ok, true)
+  assert.ok(calls.some((call) => call.ops.length === 1 && call.ops[0].op === 'unset' && call.ops[0].path.join('.') === 'embeddingApiKey'),
+    'clearing the key must reach the seam as an unset op')
 })
 
 test('POST saves the section and returns the updated snapshot', async () => {

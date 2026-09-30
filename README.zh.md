@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话（连同该轮工具活动的有界摘要、以及各子代理最终答复的摘录）蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.3.2** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.4.0** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -128,6 +128,8 @@ curl -s http://127.0.0.1:3080/_dsh/memory/settings   # 依次为 settings.value 
 
 `bin/dsh-memory-mcp.mjs` 通过 stdio JSON-RPC（MCP）暴露同一套 Markdown 记忆库，不依赖 DeepSeek Harness 运行时。环境变量：`DSH_MEMORY_DIR`（默认 `~/.dsh/memories`）、`DSH_MEMORY_REDACT=1`（默认）。作用域参数：`global`（默认）、`workspace`/`project`（需 `cwd`）。
 
+它提供 **9 个**工具：`memory_read`、`memory_add`、`memory_search`、`memory_update`、`memory_delete`、`memory_merge`、`memory_review`、`memory_history`、`memory_stats`。宿主插件的另外 5 个**有意只做宿主侧**，因为它们由宿主界面而非存储定义：`memory_browse` 经宿主 Web 服务渲染交互式 HTML 浏览器；`memory_export`/`memory_import` 读写宿主侧路径；`memory_rollback` 在宿主合并记账中恢复某个摘要版本；`memory_sync` 需要与宿主的 AGENTS.md 指纹状态对齐。它们底层的存储原语（`lib/store.js`）在两个进程里是同一份文件，因此 MCP 宿主仍能访问全部条目——只是通过直接编辑 Markdown，而不是这些包装工具。
+
 提供 9 个工具，存储语义与 DSH 工具一致：`memory_read`、`memory_add`、`memory_update`、`memory_delete`、`memory_search`、`memory_stats`、`memory_history`、`memory_merge`、`memory_review`。客户端配置示例见 [`examples/mcp-config.json`](examples/mcp-config.json)。
 
 
@@ -177,10 +179,10 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## 开发与测试
 
-`npm test` 运行 90 项测试（node:test）：
+`npm test` 运行 94 项测试（node:test）：
 
 - `test/store.test.js` —— 存储语义、journal、历史、归档、作用域；
-- `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链（含 DSH 0.1.7 上经 `describe()` 的读取）、`extractMessageText`（user/assistant 事件结构）、有界的工具活动摘要（`formatToolCall`/`formatToolResult`）、子代理摘录格式化，以及注入预算使用的 token 估算/截断；
+- `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链（含 DSH 0.1.7 上经 `describe()` 的读取）、`extractMessageText`（user/assistant 事件结构）、有界的工具活动摘要（`formatToolCall`/`formatToolResult`）、子代理与 compaction 摘录格式化，以及注入预算使用的 token 估算/截断；
 - `test/browser.test.js` —— 交互式 HTML 浏览器的快照渲染；
 - `test/web-settings.test.js` —— 设置端点生命周期（GET/POST、403/409、体积限制）、在 `memory` 与 0.1.7 加载行 id 之间探测命名空间，以及 VM 沙箱加载客户端 bundle 断言两种卡片注册（0.1.5 的 `settings.plugin.item` 卡片与 0.1.7 的 `plugins.row.config` 表单）；
 - `test/volatile.test.js` —— DSH 0.1.7 的 volatile 接缝：仅在 schema 库支持时把字段标记为可实时编辑、按全局注册的写钩子识别 cosmokit Volatile 盒、以及把整份解析后的配置读回为普通值；

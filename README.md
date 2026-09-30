@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **Auto memory** — on each finished turn of a root agent, the new conversation text (plus a bounded digest of the tools it ran, and of any subagent’s final answer) is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.3.2** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.4.0** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
@@ -128,6 +128,8 @@ To clear a stale override, edit it in the card, or delete the key from the `memo
 
 `bin/dsh-memory-mcp.mjs` exposes the same Markdown memory store over stdio JSON-RPC (MCP) with no DeepSeek Harness runtime dependency. Environment: `DSH_MEMORY_DIR` (default `~/.dsh/memories`), `DSH_MEMORY_REDACT=1` (default). Scope arguments: `global` (default), `workspace`/`project` with a `cwd` argument.
 
+It serves **nine** tools — `memory_read`, `memory_add`, `memory_search`, `memory_update`, `memory_delete`, `memory_merge`, `memory_review`, `memory_history`, `memory_stats`. The host plugin's other five are deliberately host-only, because each is defined by a host surface rather than by the store: `memory_browse` renders the interactive HTML browser through the host Web server, `memory_export`/`memory_import` read and write harness-side paths, `memory_rollback` restores a summary version as part of the host's consolidation bookkeeping, and `memory_sync` reconciles `$DSH_HOME/AGENTS.md` seeding with the host's fingerprint state. The store primitives they build on (`lib/store.js`) are the same file in both processes, so an MCP host can reach every entry — it just edits the Markdown directly instead of through those wrappers.
+
 It serves 9 tools with the same store semantics as the DSH tools: `memory_read`, `memory_add`, `memory_update`, `memory_delete`, `memory_search`, `memory_stats`, `memory_history`, `memory_merge`, `memory_review`. An example client config lives in [`examples/mcp-config.json`](examples/mcp-config.json).
 
 
@@ -194,10 +196,10 @@ Tools accept a `scope` argument (`global` | `workspace` | `project`); the projec
 
 ## Development & testing
 
-`npm test` runs 90 tests (node:test):
+`npm test` runs 94 tests (node:test):
 
 - `test/store.test.js` — store semantics, journal, history, archiving, scopes;
-- `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain (including the `describe()`-based read on DSH 0.1.7), `extractMessageText` (user/assistant event shapes), the bounded tool-activity digest (`formatToolCall`/`formatToolResult`), the subagent excerpt formatter, and the token estimator/bounder used by the injection budget;
+- `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain (including the `describe()`-based read on DSH 0.1.7), `extractMessageText` (user/assistant event shapes), the bounded tool-activity digest (`formatToolCall`/`formatToolResult`), the subagent and compaction excerpt formatters, and the token estimator/bounder used by the injection budget;
 - `test/browser.test.js` — the interactive HTML browser snapshot rendering;
 - `test/web-settings.test.js` — the settings endpoint lifecycle (GET/POST, 403/409, body limits), the namespace probe that finds `memory` or the 0.1.7 loader-row id, plus VM-sandbox loads of the client bundle asserting both card registrations (the 0.1.5 `settings.plugin.item` card and the 0.1.7 `plugins.row.config` form);
 - `test/volatile.test.js` — the DSH 0.1.7 volatile seam: marking a schema field live-editable only where the schema library supports it, recognizing a cosmokit Volatile box by its globally registered write hook, and reading a whole resolved config back as plain values;

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { isVolatileValue, plainConfig, unboxConfigValue, volatileField } from '../lib/volatile.js'
+import { isVolatileValue, plainConfig, secretField, unboxConfigValue, volatileField } from '../lib/volatile.js'
 
 /** A cosmokit-shaped Volatile box: `get()` plus the globally registered write hook. */
 function volatileBox(value) {
@@ -22,6 +22,18 @@ test('volatileField leaves the field alone when Schema#volatile is absent (DSH 0
   const field = { type: 'string' }
   assert.equal(volatileField(field), field)
   assert.equal(volatileField(undefined), undefined)
+})
+
+test('secretField marks a field as a secret only where roles exist', () => {
+  const marked = []
+  const schema = { role: (text) => { marked.push(text); return schema } }
+  assert.equal(secretField(schema), schema)
+  assert.deepEqual(marked, ['secret'])
+  // The 0.1.5 line has no Schema#role; the field must survive untouched rather
+  // than throw while the plugin is loading.
+  const plain = {}
+  assert.equal(secretField(plain), plain)
+  assert.equal(secretField(null), null)
 })
 
 test('isVolatileValue recognizes a box by its globally registered write hook', () => {

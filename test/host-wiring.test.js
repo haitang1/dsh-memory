@@ -76,6 +76,24 @@ test('host wiring: captures subagent results from the delegating agent\u2019s sc
     'the captured excerpt must be bounded by the pure formatter')
   assert.match(source, /captureSubagents: z\.boolean\(\)\.default\(true\)/,
     'the capture switch must exist in the schema')
+  // Compaction replaces a span of the model surface, so its recap is the one
+  // signal for content that leaves the surface mid-turn.
+  assert.match(source, /ctx\.on\('session\/event'/,
+    'the compaction capture must listen to session/event')
+  assert.match(source, /'compaction\/summary'/,
+    'only compaction/summary events may be captured')
+  assert.match(source, /formatCompactionSummary\(/,
+    'the compaction recap must be bounded by the pure formatter')
+})
+
+test('host wiring: diagnostics carry live pipeline counters after a merge', async () => {
+  const source = await readFile(new URL('../lib/index.js', import.meta.url), 'utf8')
+  // Post-restart verification reads diagnostics.json; it must report the
+  // pipeline's real state, not only the boot-time tool inventory.
+  assert.match(source, /writeStartupDiagnostics\(\{[\s\S]{0,400}?llmStats:/,
+    'consolidation must merge live llm counters into diagnostics.json')
+  assert.match(source, /summarizeSkips: telemetry\.summarizeSkipCounts/,
+    'diagnostics must report why distillations were skipped')
 })
 
 test('host wiring: settings saves patch the namespace and keep a consolidation token floor', async () => {
