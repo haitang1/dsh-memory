@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import {
   AUTO_MEMORY_SKILL,
+  estimateTokens,
   extractMessageText,
   formatSubagentResult,
   formatToolCall,
@@ -10,7 +11,8 @@ import {
   resolveSummarizeRoute,
   SUBAGENT_EXCERPT_CHARS,
   SUBAGENT_EXCERPT_MIN_CHARS,
-  TOOL_DIGEST_ENTRY_CHARS
+  TOOL_DIGEST_ENTRY_CHARS,
+  truncateToTokens
 } from '../lib/automation.js'
 
 function resolved(overrides = {}) {
@@ -151,6 +153,24 @@ test('formatSubagentResult bounds a settled child\u2019s final answer', () => {
   assert.equal(formatSubagentResult({}), '')
   assert.equal(formatSubagentResult(undefined), '')
   assert.equal(formatSubagentResult(null), '')
+})
+
+test('estimateTokens prices CJK per character and Latin per four', () => {
+  assert.equal(estimateTokens(''), 0)
+  assert.equal(estimateTokens('abcd'), 1)
+  assert.equal(estimateTokens('\u4e2d\u6587\u8bb0\u5fc6'), 4)
+  // Mixed text: 4 Latin chars (1 token) + 2 wide chars (2 tokens).
+  assert.equal(estimateTokens('abcd\u4e2d\u6587'), 3)
+})
+
+test('truncateToTokens keeps whole lines and respects the budget', () => {
+  const text = 'line one\nline two\nline three\n'
+  assert.equal(truncateToTokens(text, 1000), text)
+  const trimmed = truncateToTokens(text, 5)
+  assert.ok(estimateTokens(trimmed) <= 5, 'must stay inside the budget')
+  assert.ok(!trimmed.endsWith('lin'), 'must not cut a line in half when a boundary is available')
+  assert.equal(truncateToTokens(text, 0), '')
+  assert.equal(truncateToTokens(text, -1), '')
 })
 
 test('AUTO_MEMORY_SKILL advertises proactive memory behavior', () => {

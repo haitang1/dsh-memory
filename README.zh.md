@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话（连同该轮工具活动的有界摘要、以及各子代理最终答复的摘录）蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.3.1** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.3.2** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -41,7 +41,7 @@ $DSH_HOME/memories/
        - id: dsh-memory
          name: '@dsh-external/dsh-memory'
          config:
-           maxBytes: 8000
+           maxBytes: 16000
            autoSummarize: true
    ```
 
@@ -60,7 +60,8 @@ dsh plugin --profile web add 'github:haitang1/dsh-memory#f3c8de4'
 | 键 | 默认值 | 说明 |
 | --- | --- | --- |
 | `memoryDir` | `$DSH_HOME/memories` | 记忆目录（空 = 默认）。 |
-| `maxBytes` | `8000` | 注入摘要的字节上限。 |
+| `maxBytes` | `16000` | 注入摘要（以及摘要文件本身）的字节上限。 |
+| `injectTokens` | `0` | 注入摘要的估算 token 上限；`0` 表示只按字节限制。中文约每字符 1 token，拉丁文约 1/4。 |
 | `consolidateMaxBytes` | `40000` | 合并模型输入的总字节预算。 |
 | `keepSummaryVersions` | `20` | 保留的摘要历史版本数，供 `memory_rollback` 回滚（0 = 不保留）。 |
 | `rawArchiveMaxBytes` | `200000` | 活动 raw 文件字节预算；超出后最旧条目移入 `archive/`。 |
@@ -83,6 +84,8 @@ dsh plugin --profile web add 'github:haitang1/dsh-memory#f3c8de4'
 Web 设置页卡片（见下文）可在线编辑**全部配置项**；各键亦可通过 loader 配置或 `settings.yaml` 的 `memory:` 段覆盖。配置解析顺序为 schema 默认 → 组合 `base` → **user 层**，user 层优先级最高，因此卡片只持久化**你改动过的字段**；把字段改回默认值时会删除其 user 层条目，而不是把默认值写死。详见[升级须知](#升级须知)。
 
 ## 升级须知
+
+**0.3.2 把 `maxBytes` 默认值由 `8000` 改为 `16000`。** user 层里保存过的 `maxBytes` 仍然优先，要拿到更大的预算需在卡片里清零/改写，或从 `$DSH_HOME/settings.yaml` 的 `memory:` 段删掉该键。新增的 `injectTokens`（默认 `0` = 关闭）是全新的键，不会被旧值钉住。
 
 插件升级可能改动配置**默认值**，但已写入 user 层的旧值优先级更高（解析顺序：schema 默认 → `base` 组合层 → user 层，user 层胜出）。因此被旧版本固化的值会一直覆盖新默认值——这正是 `consolidateMaxTokens: 3000`（0.2.11 之前的默认值）在 0.2.11 把默认值提到 `8192` 之后仍然卡住合并的原因：每次合并都以 `dsh-memory: LLM output reached max tokens` 失败、摘要停止推进，而插件表面上一切正常（工具、注入、Web 卡片都照常工作）。
 
@@ -174,10 +177,10 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## 开发与测试
 
-`npm test` 运行 88 项测试（node:test）：
+`npm test` 运行 90 项测试（node:test）：
 
 - `test/store.test.js` —— 存储语义、journal、历史、归档、作用域；
-- `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链（含 DSH 0.1.7 上经 `describe()` 的读取）、`extractMessageText`（user/assistant 事件结构），以及有界的工具活动摘要（`formatToolCall`/`formatToolResult`）；
+- `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链（含 DSH 0.1.7 上经 `describe()` 的读取）、`extractMessageText`（user/assistant 事件结构）、有界的工具活动摘要（`formatToolCall`/`formatToolResult`）、子代理摘录格式化，以及注入预算使用的 token 估算/截断；
 - `test/browser.test.js` —— 交互式 HTML 浏览器的快照渲染；
 - `test/web-settings.test.js` —— 设置端点生命周期（GET/POST、403/409、体积限制）、在 `memory` 与 0.1.7 加载行 id 之间探测命名空间，以及 VM 沙箱加载客户端 bundle 断言两种卡片注册（0.1.5 的 `settings.plugin.item` 卡片与 0.1.7 的 `plugins.row.config` 表单）；
 - `test/volatile.test.js` —— DSH 0.1.7 的 volatile 接缝：仅在 schema 库支持时把字段标记为可实时编辑、按全局注册的写钩子识别 cosmokit Volatile 盒、以及把整份解析后的配置读回为普通值；

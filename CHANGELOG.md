@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.3.2 (2026-09-30)
+
+### A larger default memory, and a token cap for what one prompt pays
+
+The injected summary was bounded by bytes only, and the default budget was
+**8000 bytes** — on the live deployment the summary had already reached 7848 B,
+so memory was effectively saturated, while a byte budget also prices the same
+text very differently for CJK (~1 token/char) and Latin (~1 token/4 chars).
+
+- **`maxBytes` default 8000 → 16000.** The summary file and the injected copy
+  may now hold about twice as much. The consolidation token floor derives from
+  `maxBytes` (`min(16384, max(4096, ceil(maxBytes/2)))` = 8000 here), so the
+  existing default `consolidateMaxTokens: 8192` still clears it and no alert is
+  raised.
+- **New `injectTokens` key (default `0` = no token cap).** When set, the
+  injected text is additionally trimmed to that many *estimated* tokens by a
+  new dependency-free estimator (`estimateTokens`/`truncateToTokens` in
+  `lib/automation.js`): wide (CJK) characters cost about one token, everything
+  else about a quarter, and the cut prefers a line boundary. This lets a
+  deployment raise `maxBytes` for a large-context model while still capping what
+  a single prompt pays in token terms.
+
+Upgrade note (see README *Upgrade notes*): a `maxBytes` value already saved in
+the user layer outranks this new default and must be cleared or edited in the
+card (or removed from the `memory:` section of `$DSH_HOME/settings.yaml`) to
+pick the larger budget up. This deployment's user layer is empty, so the new
+default applies on the next restart.
+
+Suite 88 → 90; the configuration surface is now 24 fields.
+
 ## 0.3.1 (2026-09-30)
 
 ### Move the per-turn read off the deprecated Surface call

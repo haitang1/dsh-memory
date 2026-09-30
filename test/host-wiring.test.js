@@ -276,7 +276,7 @@ test('host wiring: apply() registers the memory settings, 14 tools, the skill, a
   }
 
   try {
-    plugin.apply(fakeCtx, { memoryDir: tmpDir, autoSummarize: false, seedFromAgentsMd: false, consolidateMaxTokens: 3000 })
+    plugin.apply(fakeCtx, { memoryDir: tmpDir, autoSummarize: false, seedFromAgentsMd: false, maxBytes: 8000, consolidateMaxTokens: 3000 })
 
     assert.equal(hook.settings.namespace, 'memory', 'settings namespace must be the bare string "memory"')
     assert.equal(hook.tools.length, TOOL_NAMES.length, 'all memory_* tools must be registered')
@@ -291,7 +291,7 @@ test('host wiring: apply() registers the memory settings, 14 tools, the skill, a
     // the lift reported, instead of failing every merge with 'max tokens'.
     const stats = hook.tools.find((def) => def.name === 'memory_stats')
     const value = await stats.execute({}, { signal: { aborted: false } })
-    assert.equal(value.consolidateMaxTokens, 4096, 'consolidateMaxTokens must be floored for a maxBytes-sized summary')
+    assert.equal(value.consolidateMaxTokens, 4096, 'consolidateMaxTokens must be floored for an 8000-byte summary')
     assert.equal(value.configAlerts.length, 1, 'a lifted budget must be reported')
     assert.equal(value.configAlerts[0].key, 'consolidateMaxTokens')
     assert.equal(value.configAlerts[0].configured, 3000)

@@ -571,7 +571,7 @@ test('client bundle registers the DSH 0.1.7 Plugins-page form on the row-config 
   assert.equal(tree.props.labels.save, 't:save')
   // React accepts one array child and flattens it; the stub records it as one arg.
   const controls = tree.children.flat()
-  assert.equal(controls.length, 21, 'every live-editable field must render a control')
+  assert.equal(controls.length, 22, 'every live-editable field must render a control')
   // The embeddings API key is masked: a secret control with a configured badge,
   // while every other field is a plain value control.
   const secrets = controls.filter((child) => child.type === SettingsSecretFieldStub)
@@ -582,7 +582,7 @@ test('client bundle registers the DSH 0.1.7 Plugins-page form on the row-config 
   assert.equal(secrets[0].props.stateLabel, 't:formSecretSet')
   assert.equal(typeof secrets[0].props.onEdit, 'function')
   assert.equal(secrets[0].props.onReset, undefined, 'the secret control has no reset affordance')
-  assert.equal(values.length, 20)
+  assert.equal(values.length, 21)
   for (const child of values) {
     assert.match(child.props.label, /^t:\w+Label$/, 'each control must be labelled from the dictionary')
     assert.equal(typeof child.props.onEdit, 'function')

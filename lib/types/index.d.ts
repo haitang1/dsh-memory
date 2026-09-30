@@ -10,7 +10,7 @@ import type z from '@deepseek-ai/schemastery'
 export interface MemoryConfig {
   /** Memory directory; empty defaults to `$DSH_HOME/memories`. */
   memoryDir?: string
-  /** Byte budget for the injected summary (default 8000). */
+  /** Byte budget for the injected summary (default 16000). */
   maxBytes?: number
   /** Byte budget for the consolidation input sent to the merge model (default 40000). */
   consolidateMaxBytes?: number
@@ -41,6 +41,8 @@ export interface MemoryConfig {
   llmRetries?: number
   /** Maximum concurrent turn summarizations before new jobs are dropped (default 4). */
   maxActiveSummaries?: number
+  /** Estimated-token cap for the injected summary; 0 disables the token cap and leaves the byte budget in charge (default 0). */
+  injectTokens?: number
   /** Enable per-workspace memory scopes (default false). */
   scopedMemory?: boolean
   /** Keep a bounded excerpt of each settled subagent's final answer as a rollout block (default true; no extra LLM call). */
