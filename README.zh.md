@@ -19,10 +19,10 @@ $DSH_HOME/memories/
 
 - **注入** —— 通过 `systemPrompt.context` 在每次提示词组装时重读 `memory_summary.md`，因此 `memory_add` 写入后下一步立即生效。
 - **工具** —— `memory_read` / `memory_add` / `memory_update` / `memory_delete` / `memory_search` / `memory_review` / `memory_merge` / `memory_export` / `memory_import` / `memory_stats` / `memory_browse` / `memory_history` / `memory_rollback` / `memory_sync`（见下表）。
-- **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
+- **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话（连同该轮工具活动的有界摘要、以及各子代理最终答复的摘录）蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.2.16** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.3.0** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -73,6 +73,7 @@ dsh plugin --profile web add 'github:haitang1/dsh-memory#f3c8de4'
 | `llmRetries` | `1` | LLM 瞬时失败后的重试次数。 |
 | `maxActiveSummaries` | `4` | 同时进行的轮次摘要上限，超出后丢弃新任务。 |
 | `scopedMemory` | `false` | 开启按工作区隔离的记忆作用域。 |
+| `captureSubagents` | `true` | 把每个子代理最终答复的有界摘录（2000 字符）记为一个 rollout 块。捕获只做一次文件追加，由周期性合并负责蒸馏，**不额外调用 LLM**。 |
 | `redactSecrets` | `true` | 注入前对疑似凭据文本做脱敏。 |
 | `readOnlyScopes` | `[]` | 禁止写入工具的作用域键（`global`、精确 `ws-*`/`project-*`，或 `*` 表示全部）。 |
 | `embeddingBaseURL` / `embeddingApiKey` / `embeddingModel` | 空 | `vector:true` 时可选的 OpenAI 兼容 `/embeddings` 端点；为空则使用本地哈希向量。 |
@@ -173,7 +174,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## 开发与测试
 
-`npm test` 运行 86 项测试（node:test）：
+`npm test` 运行 88 项测试（node:test）：
 
 - `test/store.test.js` —— 存储语义、journal、历史、归档、作用域；
 - `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链（含 DSH 0.1.7 上经 `describe()` 的读取）、`extractMessageText`（user/assistant 事件结构），以及有界的工具活动摘要（`formatToolCall`/`formatToolResult`）；

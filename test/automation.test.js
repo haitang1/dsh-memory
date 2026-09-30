@@ -4,9 +4,12 @@ import { readFile } from 'node:fs/promises'
 import {
   AUTO_MEMORY_SKILL,
   extractMessageText,
+  formatSubagentResult,
   formatToolCall,
   formatToolResult,
   resolveSummarizeRoute,
+  SUBAGENT_EXCERPT_CHARS,
+  SUBAGENT_EXCERPT_MIN_CHARS,
   TOOL_DIGEST_ENTRY_CHARS
 } from '../lib/automation.js'
 
@@ -129,6 +132,25 @@ test('formatToolResult reports status and the reason or first text block', () =>
   assert.equal(formatToolResult({ message: { content: [] } }), '[tool result] ok')
   assert.equal(formatToolResult(undefined), '')
   assert.equal(formatToolResult('not-an-object'), '')
+})
+
+test('formatSubagentResult bounds a settled child\u2019s final answer', () => {
+  const body = formatSubagentResult({
+    id: 'child-1',
+    stopReason: 'completed',
+    lastAssistantMessage: [{ type: 'text', text: 'x'.repeat(SUBAGENT_EXCERPT_MIN_CHARS) }]
+  })
+  assert.ok(body.startsWith('[subagent result (completed)]\n'))
+  assert.ok(body.includes('x'.repeat(SUBAGENT_EXCERPT_MIN_CHARS)))
+  // Over-long answers are clipped so one child cannot dominate a rollout file.
+  assert.ok(formatSubagentResult({
+    lastAssistantMessage: [{ type: 'text', text: 'y'.repeat(SUBAGENT_EXCERPT_CHARS * 2) }]
+  }).length < SUBAGENT_EXCERPT_CHARS + 40)
+  assert.equal(formatSubagentResult({ lastAssistantMessage: [{ type: 'text', text: 'too short' }] }), '')
+  assert.equal(formatSubagentResult({ lastAssistantMessage: [] }), '')
+  assert.equal(formatSubagentResult({}), '')
+  assert.equal(formatSubagentResult(undefined), '')
+  assert.equal(formatSubagentResult(null), '')
 })
 
 test('AUTO_MEMORY_SKILL advertises proactive memory behavior', () => {

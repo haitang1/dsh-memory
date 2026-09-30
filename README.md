@@ -19,10 +19,10 @@ $DSH_HOME/memories/
 
 - **Injection** — `systemPrompt.context` re-reads `memory_summary.md` at every prompt assembly, so a `memory_add` call surfaces in the very next model step.
 - **Tools** — `memory_read`, `memory_add`, `memory_update`, `memory_delete`, `memory_search`, `memory_review`, `memory_merge`, `memory_export`, `memory_import`, `memory_stats`, `memory_browse`, `memory_history`, `memory_rollback`, `memory_sync` (see below).
-- **Auto memory** — on each finished turn of a root agent, the new conversation text is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
+- **Auto memory** — on each finished turn of a root agent, the new conversation text (plus a bounded digest of the tools it ran, and of any subagent’s final answer) is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.2.16** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.3.0** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
@@ -73,6 +73,7 @@ Pinning a commit is recommended (`f3c8de4` is the `v0.2.7` release commit); omit
 | `llmRetries` | `1` | Retries after a transient LLM failure. |
 | `maxActiveSummaries` | `4` | Maximum concurrent turn summarizations before new jobs are dropped. |
 | `scopedMemory` | `false` | Enable per-workspace memory scopes. |
+| `captureSubagents` | `true` | Keep a bounded excerpt (2000 chars) of each settled subagent's final answer as a rollout block. Capturing costs one file append — the periodic consolidation distills it, so no extra LLM call is made. |
 | `redactSecrets` | `true` | Redact credential-looking text from injected summaries. |
 | `readOnlyScopes` | `[]` | Scope keys whose write tools are blocked (`global`, exact `ws-*`/`project-*` keys, or `*` for all). |
 | `embeddingBaseURL` / `embeddingApiKey` / `embeddingModel` | empty | OpenAI-compatible `/embeddings` endpoint for `vector:true`; empty uses local hashed vectors. |
@@ -190,7 +191,7 @@ Tools accept a `scope` argument (`global` | `workspace` | `project`); the projec
 
 ## Development & testing
 
-`npm test` runs 86 tests (node:test):
+`npm test` runs 88 tests (node:test):
 
 - `test/store.test.js` — store semantics, journal, history, archiving, scopes;
 - `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain (including the `describe()`-based read on DSH 0.1.7), `extractMessageText` (user/assistant event shapes), and the bounded tool-activity digest (`formatToolCall`/`formatToolResult`);

@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.3.0 (2026-09-30)
+
+### Capture subagent results, the one content class memory never saw
+
+Distillation is driven by `agent/turn-stopping`, which the plugin only acts on
+for **root** sessions, so every delegated child was skipped by design — in a
+delegation-heavy session the densest durable content (research findings, the
+fix a child verified) never reached memory at all.
+
+`subagent/end` carries the child's final answer (`lastAssistantMessage`), but
+its payload has no parent identity: dsh-subagent dispatches the lifecycle with
+a **scope carrier keyed to the delegating parent agent**, so the parent is only
+reachable through the dispatch receiver. The plugin therefore registers the
+listener on that agent's own scoped context (`agent.ctx`, obtained from
+`agent/created` and, for agents already live at load time, from the
+`agent/turn-stopping` handler the plugin already consumes). Each agent's scope
+then receives exactly its children's events — no global run-to-parent
+bookkeeping, and disposal follows the agent's teardown.
+
+- New config key **`captureSubagents`** (default `true`): keep a bounded
+  excerpt of each settled child's final answer as a rollout block for the
+  parent session, via the new pure `formatSubagentResult` (2000 chars max,
+  ignored below 80 chars, `[subagent result (<stopReason>)]` marker).
+- **No extra LLM call**: capturing is one file append under the existing store
+  lock; the periodic consolidation already reads rollout blocks and distills
+  them, so cost is bounded by the summary pipeline that already runs.
+- Duplicate suppression: a continuable child settles once per residency epoch,
+  so the last captured body per child session is remembered (bounded to 64) and
+  repeats are skipped with reason `subagent-duplicate`; empty/short children
+  report `subagent-empty` through `memory_stats.skips`.
+- Scope routing matches turn distillation: global, or the parent's
+  workspace/project scope when `scopedMemory` is on.
+- Graceful degradation: without `agent.ctx` (compositions that do not scope
+  agents) capture is silently unavailable, and a non-lock-owning instance
+  skips with `no-lock` instead of writing.
+
+Suite 86 → 88 (`formatSubagentResult`, plus a host-wiring source guard that
+pins the capture to the agent's scoped context rather than the host ctx).
+Configuration surface is now 23 fields (four-place sync: `Config` →
+`lib/types/index.d.ts` → README en/zh → the client card).
+
 ## 0.2.16 (2026-09-30)
 
 ### Distill tool activity, and drop retired DSH vocabulary

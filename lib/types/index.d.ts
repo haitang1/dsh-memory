@@ -43,6 +43,8 @@ export interface MemoryConfig {
   maxActiveSummaries?: number
   /** Enable per-workspace memory scopes (default false). */
   scopedMemory?: boolean
+  /** Keep a bounded excerpt of each settled subagent's final answer as a rollout block (default true; no extra LLM call). */
+  captureSubagents?: boolean
   /** Injected byte budget for the workspace-scoped summary when scopedMemory is enabled (default 2400). */
   scopeMaxBytes?: number
   /** Redact detected credential patterns from injected summaries (default true). */

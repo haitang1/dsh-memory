@@ -51,6 +51,22 @@ test('host wiring: waits for the llm service via inject instead of a boot-time c
     'must not capture llm once at boot; wait for the injected service')
 })
 
+test('host wiring: captures subagent results from the delegating agent\u2019s scoped context', async () => {
+  const source = await readFile(new URL('../lib/index.js', import.meta.url), 'utf8')
+  // dsh-subagent dispatches subagent/* with a scope carrier keyed to the
+  // delegating parent agent, so a listener on that agent's own scoped context
+  // receives exactly its children. Registering on the host ctx instead would
+  // receive every run with no way to tell the parents apart.
+  assert.match(source, /agentCtx\.on\('subagent\/end'/,
+    'subagent/end must be listened to on the parent agent\u2019s scoped ctx (agent.ctx), not the host ctx')
+  assert.match(source, /ctx\.on\('agent\/created'/,
+    'agent/created is the earliest host-level hook that carries the agent handle')
+  assert.match(source, /formatSubagentResult\(/,
+    'the captured excerpt must be bounded by the pure formatter')
+  assert.match(source, /captureSubagents: z\.boolean\(\)\.default\(true\)/,
+    'the capture switch must exist in the schema')
+})
+
 test('host wiring: settings saves patch the namespace and keep a consolidation token floor', async () => {
   const web = await readFile(new URL('../lib/web.js', import.meta.url), 'utf8')
   assert.match(web, /settings\.mutate\(/,
