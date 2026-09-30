@@ -5,7 +5,7 @@
 ## 1. 项目概览
 
 - **定位**：DeepSeek Harness（DSH）的类 Codex 持久记忆插件——全局摘要注入每次提示词、14 个 `memory_*` 工具读写、每轮自动蒸馏、定期合并、版本化回滚；另附独立 stdio MCP server 与 Web 设置卡片。
-- **当前版本**：0.2.14（MIT，ESM，`engines: node >= 20.3`）。
+- **当前版本**：0.2.15（MIT，ESM，`engines: node >= 20.3`）。
 - **零运行时第三方依赖**：`dependencies` 为空，只有 `peerDependencies`（见红线 3）。仓库无 lockfile、无构建步骤、无 lint/typecheck——保持可读可跑，防漂移靠 `npm run check`。
 
 ## 2. 架构与模块地图
@@ -27,7 +27,7 @@
 
 ## 3. 红线（违反会直接崩/被 CI/运行时抓）
 
-1. **`settings.register('memory', …)` 用裸字符串；禁止 `settingsNamespace`**。dsh-settings@0.1.2-rc.1 已移除 `settingsNamespace` 导出，0.2.8 之前宿主在 0.1.2-rc.1 上直接报 `The requested module does not provide an export named 'settingsNamespace'`。
+1. **`settings.register('memory', …)` 用裸字符串；禁止 `settingsNamespace`**。dsh-settings@0.1.2-rc.1 已移除 `settingsNamespace` 导出，0.2.8 之前宿主在 0.1.2-rc.1 上直接报 `The requested module does not provide an export named 'settingsNamespace'`。**0.1.7 起 `register()` 本身也不存在**（`SettingsForms` 只有 `describe/update/replace/mutate`），所以 `register` 调用必须包在 `typeof … === 'function'` 探测里，0.2.x 上走无 register 分支（见红线 9）。
 2. **`AUTO_MEMORY_SKILL` 必须带 `source: 'runtime'`**。注册期不校验、加载期校验——漏掉会导致技能出现在目录却加载报错（0.2.7 的教训）。
 3. **peerDependencies 与已验证的 DSH 线对齐**：`dsh-llm / dsh-settings / dsh-tools` = `^0.1.2-rc.1 || ^0.2.0-rc.1`，`cordis` = `^4.0.1`，`schemastery` = `^3.18.0`。**DSH 是 pre-1.0，同 minor 内可出现破坏性变更，semver 满足 ≠ 运行时兼容**；升级 DSH 必须先验证再改范围（0.1.1→0.1.2、0.1.x→0.2.0 均已发生）。注意 caret 语义：`^0.1.2-rc.1` **不含** 0.2.0，故 0.2.0 线必须显式写进范围（v0.2.14）。
 4. **新增配置键四同步**：`Config`（`lib/index.js` z.object）→ `lib/types/index.d.ts` → README 配置表（en/zh）→ `lib/client.js` 卡片（en+zh 标签/提示）。漏一处即出现文档漂移。
@@ -84,7 +84,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 5. `git commit`（信息含 release: vX.Y.Z 摘要）→ `git tag -a v<ver> -m <摘要>` → `git push origin main` + 推送标签。
 - 版本号/测试数/工具数任何一处与 README 不一致，`npm run check` 会红——这是特性，不是烦恼。
 - **改 schema 默认值时必须评估 user 层覆盖**：user 层优先级最高，旧版本固化过的旧默认值会继续覆盖新默认，使这次「修复」对已装实例完全无效（0.2.11 的 8192 就是这样被 user 层的 3000 压住的）。改默认值必须配套：运行时底线或迁移、CHANGELOG 写明升级影响与手工清理方式、README 的 Upgrade notes / 升级须知同步。
-- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11 / v0.2.12 / v0.2.13 / v0.2.14（更早版本未补标签）。
+- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11 / v0.2.12 / v0.2.13 / v0.2.14 / v0.2.15（更早版本未补标签）。
 - **`npm run check` 必须在任意 reporter 下可解析**：Node 25 在 stdout 非 TTY 时默认 `spec`（`ℹ tests N`），脚本已固定 `--test-reporter=tap` 并保留 fallback 解析；改动该脚本时不要退回只认 TAP 的正则。
 
 ## 8. 部署（现状）
@@ -92,7 +92,8 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 - 线上 profile：`~/.dsh/profiles/web/`；`package.json` 中 `dependencies["@dsh-external/dsh-memory"] = "github:haitang1/dsh-memory#<commit-sha>"`，`dsh.profile.bundles` 含 `@dsh-external/dsh-memory`；安装副本为**无 .git 的纯文件拷贝**（`node_modules/@dsh-external/dsh-memory/`）。
 - 升级 = ①用仓库发布文件覆盖安装副本（`lib bin examples scripts cordis.patch.yml CHANGELOG.md README*.md LICENSE package.json`）②更新 profile pin 到新 sha ③重启。
 - **重启必须用 supervised setsid 模式**：监督进程 cmdline **不得包含 pkill 模式串**（否则自杀），写独立脚本文件再由 setsid 分离执行；参考模板 `/tmp/dshweb-restart-v028.sh`（trace `/tmp/dshweb-restart-v028.trace`）。健康检查注意：`curl /` 会被 token 守卫拦出非 2xx，属误报，以**端口监听 + 服务横幅**为准。
-- **验证依据**：`$DSH_HOME/memories/diagnostics.json` 重启后更新，且 `toolsRegistered` 列出 14 工具、`skillRegistered: true`、无 `skillError`；或 `dsh pluginInventory` 显示 enable。本机（2026-09 实测）运行副本为 DSH **0.2.0-rc.1**（launcher 目录 `_npx\ed2e730009a84a04`，以 `npx -y @deepseek-ai/dsh@0.2.0-rc.1 web` 启动；同机另存 0.1.7-rc.2 的 `_npx\1e7f6d9597241db0` 可回退）。0.1.5 走 `register(ns,…)` 裸字符串分支；0.1.7/0.2.0 走无 `register()` 的 `loader/volatile-update` 分支（见红线 9）。
+- **验证依据**：`$DSH_HOME/memories/diagnostics.json` 重启后更新，且 `toolsRegistered` 列出 14 工具、`skillRegistered: true`、无 `skillError`；或 `dsh pluginInventory` 显示 enable。本机（2026-09-30 实测）运行副本为 **DSH 0.2.0-rc.2**（全局安装 `/opt/node/lib/node_modules/@deepseek-ai/dsh`，`dsh --version` = 0.2.0-rc.2；web 进程 = `node /opt/node/bin/dsh web --port 3080`，同机 `/usr/local/bin/dsh` 亦为 0.2.0-rc.2）。0.1.5 走 `register(ns,…)` 裸字符串分支；0.1.7/0.2.0 走无 `register()` 的 `loader/volatile-update` 分支（见红线 9）。
+- **本机网络坑**：到 github.com 的 git 传输走 HTTP/2 会连续超时（`git ls-remote`/`git fetch` 卡死）；加 `-c http.version=HTTP/1.1` 即可（仓库已写入 `git config http.version HTTP/1.1`）。`api.github.com`/`codeload.github.com` 正常，git 协议不可用时可 `gh api repos/haitang1/dsh-memory/tarball/<ref>` 兜底取源码。
 - 独立 MCP：`DSH_MEMORY_DIR` + `DSH_MEMORY_REDACT=1`（默认），`bin/dsh-memory-mcp.mjs` 9 工具；AGENTS.md 种子来自 `$DSH_HOME/AGENTS.md`（`seedFromAgentsMd`，默认开；`memory_sync` 冲突检测）。
 
 ## 9. 已知坑与修复记录（教训）
@@ -107,6 +108,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 | **配置漂移** | Web 卡片以生效值初始化表单并整段 `settings.replace` 保存，**保存一次即把 22 个字段（含全部默认值）固化进 user 层**；user 层优先级高于 schema 默认，于是升级改默认值对已保存过卡片的实例完全无效（实测：0.2.11 后 `lastConsolidatedAt` 停 7 天、journal 游标 13/42，而工具/注入/端点全部正常） | 卡片只提交改动字段（`set`/`unset`）；端点把任何载荷归一化为最小补丁并改用 `settings.mutate`；`consolidateMaxTokens` 加运行时底线并上报 `configAlerts`；截断错误带键名与生效值（v0.2.12） |
 | **0.1.7 设置接缝** | 0.1.7-rc.1 换成 `SettingsForms`：`register()`/`get()` 双双消失、插件命名空间变成**加载行 id**、只有 `meta.volatile` 字段才出表单且保存**直接改写运行中的 config**（不再重新 apply）；`Schema#volatile` 在 0.1.5 线不存在，无条件调用会让插件在该线加载即失败 | 特性探测后再标记 volatile 字段；配置读取先 `plainConfig` 解盒；无 `register()` 时监听 `loader/volatile-update` 把提交镜像回 `resolved`；命名空间按 `memory` → `dsh-memory` 探测；`automation` 经 `describe()` 读命名空间（v0.2.13） |
 | **0.2.0-rc.1** | 0.1.x→0.2.x 是 minor 跳变，旧范围 `^0.1.2-rc.1` 按 caret 语义**不含** 0.2.0；semver 不匹配不等于运行不兼容，但必须实测才知道 | 实测通过：14 工具注册、设置端点 + `settings.mutate` 保存路径可用、写入→摘要→合并零错误（`llm calls: 1`），`SettingsForms`/`describe`/`mutate`/`snapshotEvents`/`createUserMessage`/`defineTool`/`agent/turn-stopping`/`loader/volatile-update`/`Schema#volatile` 全部在位；peer 改为 `^0.1.2-rc.1 \|\| ^0.2.0-rc.1`（v0.2.14） |
+| **0.2.0-rc.2** | 同一条 0.2.0 线上再进一步：`session.snapshotEvents()` 被标 `@deprecated`（"new calls are prohibited"），客户端槽位 `settings.plugin.item` 已彻底不存在，`createUserMessage` 的 `source.kind:'plugin'` 已从 v4 消息来源词表移除 | 复核通过、**无需改码**：14 工具 + `skillRegistered`、`/_dsh/memory/settings` 200、蒸馏/合并在本进程内跑通（v23、`llm calls: 2`、0 失败）；peer 门禁按 `includePrerelease` 复算仍接受。两处弃用记入待办：per-turn 读取迁移目标 `ctx.sessionQuery.observeSession(...)`（须读原始事件，禁用会丢 compaction 内容的 `deriveMessages()`）；0.1.5 卡片在 0.2.x 上静默失效（活跃路径 `plugins.row.config` + `configForms`）（v0.2.15 记录） |
 | 常态 | DSH pre-1.0，同一 `^0.1.x` 范围内 API 可破 | 升级前验证；用 host-wiring 守卫兜底 |
 
 **维护提示**：本文件是与代码平行的文档，改版本/工具数/CI/部署方式时同步更新；若与仓库不一致，以 package.json / lib / README / CHANGELOG 为准（并修本文件）。

@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.2.15 (2026-09-30)
+
+### Verified on DSH 0.2.0-rc.2; no code change required
+
+The live profile moved from DSH 0.2.0-rc.1 to **0.2.0-rc.2** on 2026-09-30.
+Every integration point was re-checked against the installed 0.2.0-rc.2 tree
+instead of trusting the peer range:
+
+- Load: `$DSH_HOME/memories/diagnostics.json` — all 14 `memory_*` tools,
+  `skillRegistered: true`, empty `toolErrors`, empty `configAlerts`.
+- Settings seam: `GET /_dsh/memory/settings` → 200 (`writable: true`, 20
+  fields). `dsh-settings` is `SettingsForms` with
+  `configure/describe/update/replace/mutate` and **no `register()`/`get()`** —
+  exactly the no-`register` volatile branch this plugin already takes.
+- Pipeline: the summary advanced to **v23** and `memory_stats` reported
+  `llm calls: 2 (14299 ms, 0 failures)`, `errors: 0`, `skips {}`, last
+  consolidation `13:44:47Z` — six minutes after the rc.2 `dsh web` process
+  started (`13:38:34Z`), so turn-stopping → rollout → consolidation ran on
+  rc.2, not merely under it.
+- APIs present in 0.2.0-rc.2: `dsh-llm` `createUserMessage` + `llm.stream`,
+  `dsh-tools` `defineTool`, `dsh-session` `snapshotEvents`/`deriveMessages`,
+  `dsh-system-prompt` `context()`, `agent/turn-stopping` (emitted by
+  `dsh-agent-loop`; the `agent` field is added by the agent dispatcher, so the
+  existing destructuring stays correct), `loader/volatile-update`, `cordis`
+  4.0.4 and `schemastery` 3.18.4 with `Schema#volatile`.
+- Peer gate: 0.2.0-rc.2 validates `@deepseek-ai/dsh-*` peers with
+  `semver.satisfies(runtime, range, { includePrerelease: true })`, so
+  `^0.1.2-rc.1 || ^0.2.0-rc.1` admits 0.2.0-rc.2 and no range change is needed.
+
+Two forward-looking notes are recorded here because they are the next DSH
+deprecations this plugin will meet (no behaviour change in this release):
+
+- `session.snapshotEvents()` is marked `@deprecated` ("new calls are
+  prohibited") and is this plugin's only per-turn reader. Its successor is
+  `ctx.sessionQuery.observeSession(...)`, and any migration must keep reading
+  **raw** events — never `deriveMessages()`, which drops the
+  compaction-shadowed content the projector must not lose.
+- The client slot `settings.plugin.item` no longer exists in 0.2.x, so the
+  0.1.5 card is inert there; `plugins.row.config` + `configForms` is the live
+  path (kept guarded, so nothing throws).
+
+Docs: `docs/STATUS.md` records the 0.2.0-rc.2 matrix; `AGENTS.md` refreshes the
+deployment facts (global 0.2.0-rc.2 install, the HTTP/1.1 fetch workaround) and
+adds the rc.2 row to the lessons table.
+
 ## 0.2.14 (2026-09-29)
 
 ### Verified on DSH 0.2.0-rc.1; peer ranges extended
