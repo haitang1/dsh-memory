@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **Auto memory** — on each finished turn of a root agent, the new conversation text (plus a bounded digest of the tools it ran, and of any subagent’s final answer) is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.4.0** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.5.0** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
@@ -81,17 +81,22 @@ Pinning a commit is recommended (`f3c8de4` is the `v0.2.7` release commit); omit
 | `scopeMaxBytes` | `2400` | Injected byte budget for the workspace summary when scopedMemory is enabled. |
 | `seedFromAgentsMd` | `true` | Seed the first summary from `$DSH_HOME/AGENTS.md`. |
 
-The Web settings card (see below) edits every config field live; keys are likewise overridable through the loader row or the `memory:` section of `settings.yaml`. Settings resolve as schema defaults → composition `base` → **user layer**, and the user layer wins, so the card persists **only the fields you changed** and a field saved back at its default drops its user-layer entry instead of pinning the default. See [Upgrade notes](#upgrade-notes).
+The Web settings form (see below) edits every config field live; keys are likewise overridable through the loader row or the `memory:` section of `settings.yaml`. Settings resolve as schema defaults → composition `base` → **user layer**, and the user layer wins, so the form persists **only the fields you changed** and a field saved back at its default drops its user-layer entry instead of pinning the default. See [Upgrade notes](#upgrade-notes).
 
 ## Upgrade notes
 
-**`maxBytes` default moved from `8000` to `16000` in 0.3.2.** A `maxBytes` value saved in the user layer still wins, so clear or edit it (in the card, or by deleting the key from `memory:` in `$DSH_HOME/settings.yaml`) to get the larger budget. The optional `injectTokens` cap (default `0` = off) is new, so nothing pins it.
+**0.5.0 dropped the DSH 0.1.5 line and fixed secret redaction.** Two consequences for an existing install:
+
+- The plugin now requires DSH **0.1.7+** (`peerDependencies` `^0.1.7-rc.1 || ^0.2.0-rc.1`). A deployment still on 0.1.5 must stay on 0.4.x; on 0.1.7+/0.2.x nothing changes except that the separate settings card is gone — the configuration form on the Plugins page is now the only settings surface.
+- `embeddingApiKey` is a schema-declared secret, so `GET /_dsh/memory/settings` no longer contains it; the response reports it through a `secrets` sidecar instead. A write that *clears* the key must send an explicit `unset: ["embeddingApiKey"]` — an absent field means "leave it as it is". (0.4.0 intended this but its schema probe never applied the mark, so the value kept crossing the endpoint; 0.5.0 fixes the probe.)
+
+**`maxBytes` default moved from `8000` to `16000` in 0.3.2.** A `maxBytes` value saved in the user layer still wins, so clear or edit it (in the form, or by deleting the key from `memory:` in `$DSH_HOME/settings.yaml`) to get the larger budget. The optional `injectTokens` cap (default `0` = off) is new, so nothing pins it.
 
 An upgraded plugin may change a config **default**, but a value already stored in the user layer outranks it (defaults → `base` → user). A value pinned by an older release therefore keeps overriding the new default — that is how a `consolidateMaxTokens` of `3000` (the pre-0.2.11 default) kept capping consolidation after 0.2.11 raised the default to `8192`, so every merge failed with `dsh-memory: LLM output reached max tokens` and the summary stopped advancing while the plugin still looked healthy.
 
 Guards from **0.2.12** on:
 
-- **Saving the card no longer pins defaults.** The card posts only the fields you changed, and setting a field back to its default removes the user-layer override rather than re-pinning it. The endpoint normalizes whichever payload it receives, so an older cached card cannot pin defaults either.
+- **Saving the form no longer pins defaults.** Only the fields you changed are written, and setting a field back to its default removes the user-layer override rather than re-pinning it. The endpoint normalizes whichever payload it receives, so a stale cached page cannot pin defaults either.
 - **A too-small consolidation budget is lifted at runtime** to the floor a `maxBytes`-sized summary needs, and reported through `memory_stats.configAlerts` plus a log warning. Larger configured values are still honored.
 - A truncation failure now names the key and its effective value instead of only `LLM output reached max tokens`.
 
@@ -101,7 +106,7 @@ To inspect the three layers in effect:
 curl -s http://127.0.0.1:3080/_dsh/memory/settings   # settings.value / .base / .user / .defaults
 ```
 
-To clear a stale override, edit it in the card, or delete the key from the `memory:` section of `$DSH_HOME/settings.yaml` — the settings provider hot-reloads the file, so no DSH restart is needed.
+To clear a stale override, edit it in the form, or delete the key from the `memory:` section of `$DSH_HOME/settings.yaml` — the settings provider hot-reloads the file, so no DSH restart is needed.
 
 ## Tools
 
@@ -156,9 +161,9 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## Web settings page
 
-The plugin ships a Web client bundle that registers a "Memory (dsh-memory)" card on the plugin configuration page (Settings → Plugins → Plugin config) automatically — no extra step is required beyond the deploy sync. The card edits **every** config field (grouped into General / Auto-summarization & consolidation / Scopes / Security & embeddings) through the plugin's own same-origin endpoint (`/_dsh/memory/settings`, registered by the host half). The card copy is localized (English/Chinese) and follows DSH's language setting; `embeddingApiKey` is shown masked, and `memoryDir` changes require a DSH restart.
+The plugin ships a Web client bundle that registers the configuration form for its own row on the **Plugins page** (Settings → Plugins → Plugin config) — no extra step beyond the deploy sync. The form edits **every** live-editable config field through the Host settings seam, which the plugin's own same-origin endpoint (`/_dsh/memory/settings`, registered by the host half) mirrors for programmatic readers. Copy is localized (English/Chinese) and follows DSH's language setting; `embeddingApiKey` is a write-only secret (see below), and `memoryDir` changes require a DSH restart.
 
-Since DSH **0.1.0-rc.7**, `settings.plugin.item` is a keyed slot and the plugin configuration tab dispatches cards by **settings namespace**: the card registers with `key: 'memory'` (the plugin's own settings namespace). rc.7 also removed the hard-coded `WEB_SETTINGS_NAMESPACES` allowlist from `dsh-host-apiproxy` — the generic Web settings API serves every registered namespace, so the legacy `patch-web-settings.ps1` no longer applies. This plugin is verified against DSH **0.1.2-rc.1** (the line that dropped the `settingsNamespace` helper, requires a bare-string settings namespace, and replaced `Session.events` with the Surface layer `snapshotEvents`/`deriveMessages`), **0.1.7-rc.1** (which replaced the settings provider with `SettingsForms`, made the loader-row config the settings document, and generates forms only for `meta.volatile` fields), and **0.2.0-rc.1** / **0.2.0-rc.2** (which keep that model — checked live on both: all 14 tools registered, the settings endpoint and the `settings.mutate` save path working, and a full write → summarize → consolidate round-trip with zero errors; on rc.2 the peer gate was also evaluated with `includePrerelease`, so the existing range admits it). Its `peerDependencies` therefore accept both validated lines: `dsh-llm` / `dsh-settings` / `dsh-tools` `^0.1.2-rc.1 || ^0.2.0-rc.1`, `cordis` `^4.0.1`, `schemastery` `^3.18.0`.
+**Supported DSH lines: 0.1.7 and 0.2.x.** 0.1.7-rc.1 replaced the settings provider with `SettingsForms`, made the loader-row config the settings document, and generates forms only for `meta.volatile` fields; the form is the configuration of this bundle's own loader row (`dsh-memory`), registered into the keyed `plugins.row.config` slot and gated by `configForms.whileServed`. Verified live on **0.1.7-rc.1**, **0.2.0-rc.1** and **0.2.0-rc.2**: all 14 tools registered, the settings endpoint working, a write → summarize → consolidate round-trip with zero errors, and the peer gate re-evaluated with `includePrerelease` on rc.2. The **0.1.5 line is no longer supported** as of 0.5.0 — its provider-side `settings.register('memory', …)` seam and the standalone card that rendered into `settings.plugin.item` both went away with it, and `peerDependencies` are now `dsh-llm` / `dsh-settings` / `dsh-tools` `^0.1.7-rc.1 || ^0.2.0-rc.1` (plus `cordis` `^4.0.1`, `schemastery` `^3.18.0`). Deployments still on 0.1.5 must stay on 0.4.x.
 
 ## Automatic memory & the auto-memory skill
 
@@ -196,12 +201,12 @@ Tools accept a `scope` argument (`global` | `workspace` | `project`); the projec
 
 ## Development & testing
 
-`npm test` runs 94 tests (node:test):
+`npm test` runs 93 tests (node:test):
 
 - `test/store.test.js` — store semantics, journal, history, archiving, scopes;
 - `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain (including the `describe()`-based read on DSH 0.1.7), `extractMessageText` (user/assistant event shapes), the bounded tool-activity digest (`formatToolCall`/`formatToolResult`), the subagent and compaction excerpt formatters, and the token estimator/bounder used by the injection budget;
 - `test/browser.test.js` — the interactive HTML browser snapshot rendering;
-- `test/web-settings.test.js` — the settings endpoint lifecycle (GET/POST, 403/409, body limits), the namespace probe that finds `memory` or the 0.1.7 loader-row id, plus VM-sandbox loads of the client bundle asserting both card registrations (the 0.1.5 `settings.plugin.item` card and the 0.1.7 `plugins.row.config` form);
+- `test/web-settings.test.js` — the settings endpoint lifecycle (GET/POST, 403/409, body limits, secret redaction), resolution of the loader-row namespace, and a VM-sandbox load of the client bundle asserting the `plugins.row.config` form registration and that the removed 0.1.5 card is gone;
 - `test/volatile.test.js` — the DSH 0.1.7 volatile seam: marking a schema field live-editable only where the schema library supports it, recognizing a cosmokit Volatile box by its globally registered write hook, and reading a whole resolved config back as plain values;
 - `test/embedding.integration.test.js` — fake `/embeddings` server + local hashed vectors;
 - `test/mcp.integration.test.js` — real MCP child-process round-trips;

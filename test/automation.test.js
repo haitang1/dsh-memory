@@ -29,7 +29,7 @@ function resolved(overrides = {}) {
 test('resolveSummarizeRoute prefers explicit provider/model config', () => {
   const route = resolveSummarizeRoute(resolved({ summarizeProvider: 'p', summarizeModel: 'm' }), {
     agentDefaultModel: { currentSelection: () => ({ provider: 'other', model: 'other' }) },
-    settings: { get: () => ({ provider: 's', model: 's' }) }
+    settings: { describe: () => [{ ns: 'agent-default-model', value: { provider: 's', model: 's' } }] }
   })
   assert.deepEqual(route, { provider: 'p', model: 'm' })
 })
@@ -37,7 +37,7 @@ test('resolveSummarizeRoute prefers explicit provider/model config', () => {
 test('resolveSummarizeRoute falls back to the agentDefaultModel service', () => {
   const route = resolveSummarizeRoute(resolved(), {
     agentDefaultModel: { currentSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-v4-flash' }) },
-    settings: { get: () => ({ provider: 's', model: 's' }) }
+    settings: { describe: () => [{ ns: 'agent-default-model', value: { provider: 's', model: 's' } }] }
   })
   assert.deepEqual(route, { provider: 'deepseek-official', model: 'deepseek-v4-flash' })
 })
@@ -45,7 +45,7 @@ test('resolveSummarizeRoute falls back to the agentDefaultModel service', () => 
 test('resolveSummarizeRoute ignores a throwing agentDefaultModel service', () => {
   const route = resolveSummarizeRoute(resolved(), {
     agentDefaultModel: { currentSelection: () => { throw new Error('agent-scoped') } },
-    settings: { get: () => ({ provider: 'deepseek-official', model: 'deepseek-v4-flash' }) }
+    settings: { describe: () => [{ ns: 'agent-default-model', value: { provider: 'deepseek-official', model: 'deepseek-v4-flash' } }] }
   })
   assert.deepEqual(route, { provider: 'deepseek-official', model: 'deepseek-v4-flash' })
 })
@@ -53,7 +53,7 @@ test('resolveSummarizeRoute ignores a throwing agentDefaultModel service', () =>
 test('resolveSummarizeRoute falls back to the agent-default-model settings namespace', () => {
   const route = resolveSummarizeRoute(resolved(), {
     agentDefaultModel: undefined,
-    settings: { get: (ns) => (ns === 'agent-default-model' ? { provider: 'deepseek-official', model: 'deepseek-v4-flash', reasoningEffort: 'max' } : undefined) }
+    settings: { describe: () => [{ ns: 'agent-default-model', value: { provider: 'deepseek-official', model: 'deepseek-v4-flash', reasoningEffort: 'max' } }] }
   })
   assert.deepEqual(route, { provider: 'deepseek-official', model: 'deepseek-v4-flash' })
 })
@@ -75,7 +75,7 @@ test('resolveSummarizeRoute reads the namespace via describe() on DSH 0.1.7 (no 
 
 test('resolveSummarizeRoute returns undefined when no route is available', () => {
   assert.equal(resolveSummarizeRoute(resolved(), { agentDefaultModel: undefined, settings: undefined }), undefined)
-  assert.equal(resolveSummarizeRoute(resolved(), { agentDefaultModel: { currentSelection: () => undefined }, settings: { get: () => undefined } }), undefined)
+  assert.equal(resolveSummarizeRoute(resolved(), { agentDefaultModel: { currentSelection: () => undefined }, settings: { describe: () => [] } }), undefined)
 })
 
 test('extractMessageText reads user/message data.content directly', () => {

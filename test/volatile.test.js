@@ -25,13 +25,15 @@ test('volatileField leaves the field alone when Schema#volatile is absent (DSH 0
 })
 
 test('secretField marks a field as a secret only where roles exist', () => {
+  // A schemastery schema is a CALLABLE object, so the fixture must be one too:
+  // an object-only probe silently skipped the mark and left the key readable.
   const marked = []
-  const schema = { role: (text) => { marked.push(text); return schema } }
+  const schema = Object.assign(function schema() {}, { role: (text) => { marked.push(text); return schema } })
+  assert.equal(typeof schema, 'function')
   assert.equal(secretField(schema), schema)
   assert.deepEqual(marked, ['secret'])
-  // The 0.1.5 line has no Schema#role; the field must survive untouched rather
-  // than throw while the plugin is loading.
-  const plain = {}
+  // A schema without roles is returned untouched rather than throwing.
+  const plain = Object.assign(function plain() {}, {})
   assert.equal(secretField(plain), plain)
   assert.equal(secretField(null), null)
 })
@@ -99,10 +101,14 @@ test('volatileField + plainConfig round-trip a real schemastery schema', async (
     t.skip('schemastery without Schema#volatile (the DSH 0.1.5 line)')
     return
   }
-  const plain = z.object({ a: z.number().default(1), b: z.string().default('x') })
+  const plain = z.object({ a: z.number().default(1), b: z.string().default('x'), key: z.string().default('') })
   const marked = z.object(Object.fromEntries(
-    Object.entries(plain.dict).map(([key, field]) => [key, volatileField(field)])
+    Object.entries(plain.dict).map(([key, field]) => [key, key === 'key' ? volatileField(secretField(field)) : volatileField(field)])
   ))
+  // Redaction keys on `meta.role === 'secret'` in the schema the settings seam
+  // projects, so both marks must survive serialization together.
+  assert.match(JSON.stringify(marked.toJSON()), /"role":"secret"/,
+    'the secret role must survive volatile() marking, or the endpoint leaks the value')
   const resolved = marked({ a: 7 })
   assert.equal(isVolatileValue(resolved.a), true, 'a volatile field resolves to a box')
   assert.equal(isVolatileValue(resolved.b), true)

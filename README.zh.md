@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话（连同该轮工具活动的有界摘要、以及各子代理最终答复的摘录）蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.4.0** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.5.0** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -81,9 +81,14 @@ dsh plugin --profile web add 'github:haitang1/dsh-memory#f3c8de4'
 | `scopeMaxBytes` | `2400` | scopedMemory 开启时工作区摘要的注入字节预算。 |
 | `seedFromAgentsMd` | `true` | 是否用 `$DSH_HOME/AGENTS.md` 导入初始摘要。 |
 
-Web 设置页卡片（见下文）可在线编辑**全部配置项**；各键亦可通过 loader 配置或 `settings.yaml` 的 `memory:` 段覆盖。配置解析顺序为 schema 默认 → 组合 `base` → **user 层**，user 层优先级最高，因此卡片只持久化**你改动过的字段**；把字段改回默认值时会删除其 user 层条目，而不是把默认值写死。详见[升级须知](#升级须知)。
+Web 设置页表单（见下文）可在线编辑**全部配置项**；各键亦可通过 loader 配置或 `settings.yaml` 的 `memory:` 段覆盖。配置解析顺序为 schema 默认 → 组合 `base` → **user 层**，user 层优先级最高，因此卡片只持久化**你改动过的字段**；把字段改回默认值时会删除其 user 层条目，而不是把默认值写死。详见[升级须知](#升级须知)。
 
 ## 升级须知
+
+**0.5.0 放弃 DSH 0.1.5 旧线并修复密钥脱敏。** 对已有安装有两点影响：
+
+- 插件现在要求 DSH **0.1.7+**（`peerDependencies` 为 `^0.1.7-rc.1 || ^0.2.0-rc.1`）。仍停留在 0.1.5 的部署请保持 0.4.x；在 0.1.7+/0.2.x 上除「独立设置卡片消失」外没有变化——插件页上的配置表单现在是唯一的设置入口。
+- `embeddingApiKey` 是 schema 声明的 secret，因此 `GET /_dsh/memory/settings` 不再包含它，改为通过 `secrets` 侧车报告；**清除**密钥必须显式发送 `unset: ["embeddingApiKey"]`——字段缺省表示「保持不变」。（0.4.0 本意如此，但它的 schema 探测从未真正打上标记，密钥仍在端点里往返；0.5.0 修复该探测。）
 
 **0.3.2 把 `maxBytes` 默认值由 `8000` 改为 `16000`。** user 层里保存过的 `maxBytes` 仍然优先，要拿到更大的预算需在卡片里清零/改写，或从 `$DSH_HOME/settings.yaml` 的 `memory:` 段删掉该键。新增的 `injectTokens`（默认 `0` = 关闭）是全新的键，不会被旧值钉住。
 
@@ -156,9 +161,9 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## Web 设置页
 
-插件自带 Web 客户端 bundle，会自动在插件配置页（设置 → 插件 → 插件配置）注册「记忆 (dsh-memory)」卡片，无需额外步骤。卡片可编辑**全部配置项**（按 通用 / 自动摘要与合并 / 作用域 / 安全与嵌入 分组），通过插件自己的同源端点（`/_dsh/memory/settings`，由 host 半部分注册）读写配置。卡片文案为中英双语，跟随 DSH 的语言设置自动切换；`embeddingApiKey` 以掩码显示，`memoryDir` 更改需重启 DSH 生效。
+插件自带 Web 客户端 bundle，会在**插件页**（设置 → 插件 → 插件配置）为本插件自己的行注册配置表单，除部署同步外无需额外步骤。表单可编辑**全部可实时生效的配置项**，写入走宿主设置接缝；插件自己的同源端点（`/_dsh/memory/settings`，由 host 半部分注册）为程序化读者镜像同一份配置。文案中英双语，跟随 DSH 语言设置；`embeddingApiKey` 是只写密钥（见下），`memoryDir` 更改需重启 DSH。
 
-自 DSH **0.1.0-rc.7** 起：`settings.plugin.item` 改为 keyed 槽位，插件配置页按**设置命名空间**派发卡片 —— 卡片以 `key: 'memory'` 注册（即插件自己的设置命名空间）；同时 rc.7 移除了 `dsh-host-apiproxy` 的硬编码设置白名单（`WEB_SETTINGS_NAMESPACES`），通用 Web 设置 API 直接服务全部已注册命名空间，因此旧版 `patch-web-settings.ps1` 已不适用。本插件已针对 DSH **0.1.2-rc.1**（移除 `settingsNamespace` 辅助导出、设置命名空间改为裸字符串、用 Surface 层 `snapshotEvents`/`deriveMessages` 替换 `Session.events` 的那条线）、**0.1.7-rc.1**（把设置提供方换成 `SettingsForms`、以加载行 config 作为设置文档、只为 `meta.volatile` 字段生成表单的那条线）与 **0.2.0-rc.1** / **0.2.0-rc.2**（沿用同一模型，两条线均已实测：14 个工具全部注册、设置端点与 `settings.mutate` 保存路径可用、写入 → 摘要 → 合并全链路零错误；rc.2 上另按 `includePrerelease` 复算了 peer 门禁，现有范围可直接接受）验证。因此 `peerDependencies` 同时接受两条已验证线：`dsh-llm` / `dsh-settings` / `dsh-tools` 为 `^0.1.2-rc.1 || ^0.2.0-rc.1`，`cordis` 为 `^4.0.1`，`schemastery` 为 `^3.18.0`。
+**支持的 DSH 线：0.1.7 与 0.2.x。** 0.1.7-rc.1 把设置提供方换成 `SettingsForms`、以加载行 config 作为设置文档、只为 `meta.volatile` 字段生成表单；表单就是本 bundle 自己加载行（`dsh-memory`）的配置，注册进 keyed 槽位 `plugins.row.config` 并由 `configForms.whileServed` 把关。已在 **0.1.7-rc.1**、**0.2.0-rc.1**、**0.2.0-rc.2** 实测：14 个工具全部注册、设置端点可用、写入 → 摘要 → 合并全链路零错误，rc.2 上另按 `includePrerelease` 复算了 peer 门禁。**自 0.5.0 起不再支持 0.1.5 线**——它依赖的提供方侧 `settings.register('memory', …)` 接缝与渲染进 `settings.plugin.item` 的独立卡片都已随之移除，`peerDependencies` 现为 `dsh-llm` / `dsh-settings` / `dsh-tools` `^0.1.7-rc.1 || ^0.2.0-rc.1`（另有 `cordis` `^4.0.1`、`schemastery` `^3.18.0`）。仍停留在 0.1.5 的部署请保持 0.4.x。
 
 ## 自动记忆与 auto-memory 技能
 
@@ -179,12 +184,12 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## 开发与测试
 
-`npm test` 运行 94 项测试（node:test）：
+`npm test` 运行 93 项测试（node:test）：
 
 - `test/store.test.js` —— 存储语义、journal、历史、归档、作用域；
 - `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链（含 DSH 0.1.7 上经 `describe()` 的读取）、`extractMessageText`（user/assistant 事件结构）、有界的工具活动摘要（`formatToolCall`/`formatToolResult`）、子代理与 compaction 摘录格式化，以及注入预算使用的 token 估算/截断；
 - `test/browser.test.js` —— 交互式 HTML 浏览器的快照渲染；
-- `test/web-settings.test.js` —— 设置端点生命周期（GET/POST、403/409、体积限制）、在 `memory` 与 0.1.7 加载行 id 之间探测命名空间，以及 VM 沙箱加载客户端 bundle 断言两种卡片注册（0.1.5 的 `settings.plugin.item` 卡片与 0.1.7 的 `plugins.row.config` 表单）；
+- `test/web-settings.test.js` —— 设置端点生命周期（GET/POST、403/409、体积限制、密钥脱敏）、加载行命名空间解析，以及 VM 沙箱加载客户端 bundle 断言 `plugins.row.config` 表单注册、并确认已移除的 0.1.5 卡片不再存在；
 - `test/volatile.test.js` —— DSH 0.1.7 的 volatile 接缝：仅在 schema 库支持时把字段标记为可实时编辑、按全局注册的写钩子识别 cosmokit Volatile 盒、以及把整份解析后的配置读回为普通值；
 - `test/embedding.integration.test.js` —— fake `/embeddings` 服务 + 本地哈希向量；
 - `test/mcp.integration.test.js` —— 真实 MCP 子进程往返；

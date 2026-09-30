@@ -38,7 +38,7 @@
 - **P2.3 互操作**：已实现 `memory_export`/`memory_import`（Codex 文件级）与独立 MCP 服务器 `bin/dsh-memory-mcp.mjs`（stdio JSON-RPC，9 个记忆工具，作用域参数，零 DSH 运行时依赖，含真实子进程集成测试）。**决策**：不自动导入 Codex `MEMORY.md`/`memory_summary.md` 语义摘要（避免损坏 LLM 蒸馏结构），raw 文件互操作即边界。
 - **P2.4 生命周期管理**：已实现 `importance` 0-3 元数据、`memory_add` 归一化重复拒绝、`memory_review`（最旧优先/`olderThanDays`/近重复组）、`memory_merge`。**决策**：TTL/accessedAt 暂不实现——插件遵循「永不自动删除」，淘汰由 review+merge 人工完成。
 - **P2.6 安全隐私**：已实现 `detectSecrets`（AWS/GitHub/OpenAI/私钥/credential 赋值/高熵 token）与 `redactSecrets`；注入摘要默认脱敏（`redactSecrets=true`），`memory_add` 对明显凭据拒绝并需 `allowSecret:true`；`readOnlyScopes` 可按 scope 阻止 add/update/delete/merge/import/rollback/sync。**待办**：云端同步审批 UI。
-- **P2.5 可观测性与 UI**：已实现 `memory_stats` scope 库存 + errorCount/lastError 遥测、`memory_history`、`memory_browse` 自包含交互式 HTML；DSH Web 设置页已实现——`settings.plugin.item` 卡片（编辑 maxBytes/consolidateEvery/autoSummarize/seedFromAgentsMd）+ 同源端点 `/_dsh/memory/settings`，含端到端 GUI 验证。
+- **P2.5 可观测性与 UI**：已实现 `memory_stats` scope 库存 + errorCount/lastError 遥测、`memory_history`、`memory_browse` 自包含交互式 HTML；DSH Web 设置页已实现——插件页行配置表单（`plugins.row.config`，编辑全部实时字段）+ 同源端点 `/_dsh/memory/settings`（只读镜像，密钥字段脱敏），含端到端 GUI 验证。0.1.5 时代的 `settings.plugin.item` 独立卡片已于 0.5.0 随该线移除。
 - **发布与部署**：版本 `0.2.1`；`CHANGELOG.md`、`examples/mcp-config.json` 就绪；`scripts/sync-install.ps1` 已含全部发布文件并完成实际运行副本同步（含 Backup、SHA-256 全 match）；DSH 已重启，插件加载（`pluginInventory/list` active）与 Web 设置页卡片均已验证。
 
 

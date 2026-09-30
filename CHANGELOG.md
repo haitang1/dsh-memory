@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.5.0 (2026-09-30)
+
+### Drop the DSH 0.1.5 line, and make the secret mark actually apply
+
+**The 0.1.5 line is gone.** It had been dead weight for several releases: a
+provider-side `settings.register('memory', …)` seam, a standalone settings card
+rendered into the removed `settings.plugin.item` slot (about 420 lines of card
+markup, styles, and its own whole-section save path), and a `settings.get()`
+read path. All three are deleted, and the plugin now states the line it
+supports:
+
+- the settings seam is only the 0.1.7+/0.2.x `SettingsForms` model — the
+  loader-row id (`dsh-memory`) is the only settings namespace, the form on the
+  Plugins page is the only settings surface, and volatile commits are mirrored
+  from `loader/volatile-update`;
+- `peerDependencies` for `dsh-llm` / `dsh-settings` / `dsh-tools` narrow from
+  `^0.1.2-rc.1 || ^0.2.0-rc.1` to **`^0.1.7-rc.1 || ^0.2.0-rc.1`**. A deployment
+  still on 0.1.5 must stay on 0.4.x;
+- the `Schema#volatile` / `Schema#role` feature probes stay, but as defense
+  against schema-library differences rather than 0.1.5 compatibility.
+
+**The `embeddingApiKey` redaction introduced in 0.4.0 never actually applied.**
+`secretField` guarded on `typeof field === 'object'`, and a schemastery schema
+is a **callable object** (`typeof schema === 'function'`), so the guard skipped
+`role('secret')` and `describe({ redactSecrets: true })` had nothing to strip —
+the live endpoint kept returning the key, which is how it was caught after the
+0.4.0 deploy. The probe now matches `volatileField`'s (`typeof field?.role ===
+'function'`), and the gap is closed from three sides:
+
+- a unit test uses a **callable** schema fixture, so an object-only guard fails
+  the suite;
+- the real-schemastery test asserts the role survives `volatile()` marking into
+  `toJSON()`, which is exactly the schema the settings seam projects;
+- a host-wiring guard builds the plugin's real `Config` and asserts a node with
+  `meta.role === 'secret'` exists.
+
+Suite 94 → 93 (the 0.1.5-shaped `apply()` smoke and the card's sandbox test are
+gone; the guards that remain assert the seam is *absent*).
+
 ## 0.4.0 (2026-09-30)
 
 ### Capture compaction recaps, redact the embeddings key, and report live counters

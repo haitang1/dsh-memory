@@ -45,7 +45,7 @@ function fakeSettings() {
       }
       const secrets = [{ path: ['embeddingApiKey'], set: settings.user !== undefined && typeof settings.user.embeddingApiKey === 'string' && settings.user.embeddingApiKey.length > 0 }]
       return [{
-        ns: 'memory',
+        ns: 'dsh-memory',
         value: strip(settings.value),
         ...redacted ? { secrets } : {},
         ...settings.base === undefined ? {} : { base: strip(settings.base) },
@@ -165,7 +165,7 @@ test('POST saves the section and returns the updated snapshot', async () => {
   assert.equal(payload.ok, true)
   assert.equal(payload.value.settings.value.maxBytes, 4000)
   assert.equal(calls.length, 1)
-  assert.equal(calls[0].ns, 'memory')
+  assert.equal(calls[0].ns, 'dsh-memory')
   assert.equal(calls[0].expectedRevision, 7)
 })
 
@@ -300,38 +300,32 @@ test('Web route waits for the webServer service before registering', () => {
   assert.ok(effects.includes('dsh-memory: settings route'))
 })
 
-test('client bundle registers the settings.plugin.item card', () => {
+test('client bundle ships only the Plugins-page form (the 0.1.5 card is gone)', () => {
   const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
   assert.match(source, /__ModuleLoader__\.load\(\{\s*id: '@dsh-external\/dsh-memory'/)
   assert.match(source, /exports\.inject = \['slots', 'locale'\]/)
-  assert.match(source, /settings\.plugin\.item/)
-  assert.match(source, /key: 'memory'/)
   assert.match(source, /function apply\(ctx\)/)
-  assert.match(source, /_dsh\/memory\/settings/)
   assert.match(source, /locale\.register\(NS, \{ en: en, zh: zh \}\)/)
   assert.match(source, /var zh = \{/)
-  // Aligns with the built-in plugin card structure.
-  assert.match(source, /dmm-headText/)
-  assert.match(source, /dmm-pending/)
-  assert.match(source, /dmm-footer/)
-  assert.match(source, /IconChevronDownOutline14/)
-  assert.match(source, /dmm-chevOpen/)
-  // Saves must send a minimal set/unset patch rather than the whole form:
-  // posting every field pins today's defaults into the user layer, where they
-  // outrank later releases' defaults and silently break the pipeline.
-  assert.match(source, /function savePatch\(\)/)
-  assert.match(source, /set: patch\.set, unset: patch\.unset/)
-  assert.doesNotMatch(source, /value:\s*draft/, 'the card must not post the whole form')
+  assert.match(source, /plugins\.row\.config/)
+  // The 0.1.5 line owned both the slot and the card markup that rendered into
+  // it; dropping that line removes them from the bundle entirely. Comments may
+  // explain the removal, so only real code counts.
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+  assert.doesNotMatch(code, /settings\.plugin\.item/, 'the removed slot must not be referenced in code')
+  assert.doesNotMatch(code, /dmm-card/, 'the card markup and styles are gone')
+  assert.doesNotMatch(code, /function MemoryCard/, 'the card component is gone')
 })
 
-test('card exposes every config field with localized copy and correct controls', () => {
+test('form copy covers every live-editable config field in both locales', () => {
   const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
 
-  // Every config field (see Config in lib/index.js) must have en+zh label and
-  // hint keys (checkboxes carry label-only rows), rendered in the card body.
-  const labelOnly = ['autoSummarize', 'scopedMemory', 'redactSecrets', 'seedFromAgentsMd']
+  // The Host serves a form only for `meta.volatile` fields, so those are the
+  // ones that need en+zh copy. `memoryDir`/`seedFromAgentsMd` are structural
+  // (they take effect at apply time) and are deliberately absent.
+  const labelOnly = ['autoSummarize', 'captureSubagents', 'scopedMemory', 'redactSecrets']
   const withHint = [
-    'memoryDir', 'maxBytes', 'consolidateMaxBytes', 'keepSummaryVersions',
+    'maxBytes', 'injectTokens', 'consolidateMaxBytes', 'keepSummaryVersions',
     'rawArchiveMaxBytes', 'summarizeProvider', 'summarizeModel',
     'summarizeDebounceMs', 'consolidateEvery', 'summaryMaxTokens',
     'consolidateMaxTokens', 'llmRetries', 'maxActiveSummaries', 'scopeMaxBytes',
@@ -340,125 +334,18 @@ test('card exposes every config field with localized copy and correct controls',
   for (const key of labelOnly) {
     const occurrences = (source.match(new RegExp(key + 'Label', 'g')) || []).length
     assert.ok(occurrences >= 2, `${key}Label must exist in en and zh (found ${occurrences})`)
+    assert.ok(source.includes(`['${key}', 'bool']`), `${key} must be offered as a boolean form field`)
   }
   for (const key of withHint) {
     const labelHits = (source.match(new RegExp(key + 'Label', 'g')) || []).length
     const hintHits = (source.match(new RegExp(key + 'Hint', 'g')) || []).length
     assert.ok(labelHits >= 2, `${key}Label must exist in en and zh (found ${labelHits})`)
     assert.ok(hintHits >= 2, `${key}Hint must exist in en and zh (found ${hintHits})`)
+    assert.ok(new RegExp(`\\['${key}', '(number|text|secret|list)'\\]`).test(source), `${key} must be offered as a form field`)
   }
-
-  // Group headings render in both locales and the body renders them.
-  for (const key of ['groupGeneral', 'groupAuto', 'groupScopes', 'groupSecurity']) {
-    assert.ok((source.match(new RegExp(key, 'g')) || []).length >= 3, `${key} must be defined and rendered`)
-  }
-
-  // Controls: secret field is masked; readOnlyScopes round-trips through a
-  // comma-separated text input; every field writes through update(key, ...).
-  assert.match(source, /type: 'password'/)
-  assert.match(source, /readOnlyScopes', event\.target\.value\.split\(','\)/)
-  assert.match(source, /readOnlyScopes\) \? value\.readOnlyScopes\.join\(', '\)/)
-  for (const key of withHint) {
-    assert.ok(source.includes(`update('${key}'`), `card must wire update('${key}', ...)`)
-  }
-})
-
-test('client bundle loads in a browser-like sandbox, localizes, and registers the card', () => {
-  const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
-
-  const slotRegistrations = []
-  const fakeReact = {
-    useState: (initial) => [initial, () => {}],
-    useEffect: () => {},
-    createElement: (type, props, ...children) => ({ type, props, children })
-  }
-  const requireMock = (spec) => {
-    if (spec === 'react') return fakeReact
-    if (spec === '@deepseek-ai/dsh-client-ui-primitives') {
-      return {
-        IconChevronDownOutline14: (props) => ({ type: 'svg', props: props || {} })
-      }
-    }
-    throw new Error(`unexpected require: ${spec}`)
-  }
-
-  let loaded = null
-  const sandbox = {
-    window: {
-      __ModuleLoader__: {
-        load(spec) { loaded = spec }
-      }
-    }
-  }
-  vm.createContext(sandbox)
-  vm.runInContext(source, sandbox, { filename: 'client.js' })
-
-  assert.ok(loaded, 'ModuleLoader.load must be called')
-  assert.equal(loaded.id, '@dsh-external/dsh-memory')
-
-  const exports = loaded.factory(requireMock)
-  assert.deepEqual([...exports.inject], ['slots', 'locale'])
-  assert.equal(typeof exports.apply, 'function')
-
-  const effects = []
-  const localeRegistrations = []
-  const localeBindings = []
-  const fakeCtx = {
-    effect(fn, label) {
-      effects.push({ fn, label })
-      // Cordis executes the effect callback immediately and keeps its disposer.
-      const disposer = fn()
-      return () => { if (typeof disposer === 'function') disposer() }
-    },
-    locale: {
-      register(ns, dicts) {
-        localeRegistrations.push({ ns, dicts })
-        return () => {}
-      },
-      bind(ns) {
-        localeBindings.push(ns)
-        // Return a translator that stamps the key so the card's copy can be
-        // observed coming from `t(...)` rather than a hard-coded string.
-        return (key) => `t:${key}`
-      }
-    },
-    slots: {
-      inject(key, callback) {
-        assert.equal(key, 'settings.plugin.item')
-        const injection = callback()
-        slotRegistrations.push(injection)
-        return () => {}
-      },
-      register(options, component) {
-        return { options, component }
-      }
-    }
-  }
-  exports.apply(fakeCtx)
-
-  assert.equal(slotRegistrations.length, 1)
-  const registration = slotRegistrations[0]
-  assert.equal(registration.options.name, 'settings.plugin.item')
-  assert.equal(registration.options.key, 'memory')
-  assert.equal(registration.options.order, 30)
-  assert.equal(typeof registration.options.label, 'function')
-  assert.equal(registration.options.label(), 't:nav')
-  assert.equal(typeof registration.component, 'function')
-
-  // locale registered with en/zh dictionaries carrying the card copy keys
-  assert.equal(localeRegistrations.length, 1)
-  assert.equal(localeRegistrations[0].ns, 'dsh-memory')
-  assert.ok(localeRegistrations[0].dicts.en && localeRegistrations[0].dicts.zh)
-  assert.equal(typeof localeRegistrations[0].dicts.zh.save, 'string')
-  assert.equal(typeof localeRegistrations[0].dicts.zh.saved, 'string')
-  assert.deepEqual(localeBindings, ['dsh-memory'])
-
-  // Rendering the card (initial loading state) draws localized copy via t()
-  const tree = registration.component()
-  const treeText = JSON.stringify(tree)
-  assert.ok(treeText.includes('t:loading') || treeText.includes('t:unavailable'), 'card copy must come from t()')
-  assert.ok(effects.some((entry) => entry.label && entry.label.includes('locale')))
-  assert.ok(effects.some((entry) => entry.label && entry.label.includes('settings card styles')))
+  // The scope list and bool fields use the shared hints, the API key is masked.
+  assert.match(source, /formListHint/)
+  assert.match(source, /SettingsSecretField/)
 })
 
 test('client bundle registers the DSH 0.1.7 Plugins-page form on the row-config slot', () => {
