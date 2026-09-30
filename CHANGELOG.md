@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.3.1 (2026-09-30)
+
+### Move the per-turn read off the deprecated Surface call
+
+DSH 0.2.0-rc.2 marks `agent.session.snapshotEvents()` **`@deprecated`** —
+"existing logic may remain unmigrated for now, but new calls are prohibited" —
+and that call was this plugin's only way to read a turn. The supported path is
+now a `sessionQuery` observation lease:
+
+- `ctx.inject(['sessionQuery'])` waits for the query service (the same pattern
+  the llm service already uses), and `observeSession(sessionId, { projectionMode: 'none' })`
+  returns an immutable cut whose `events` are the **raw** log; the lease is
+  disposed immediately after the read.
+- It is never `deriveMessages()`: that projection removes compaction-shadowed
+  messages — exactly the content that has not been distilled into memory yet.
+  A host-wiring guard enforces this on comment-stripped source.
+- The deprecated call stays as the fallback, so a composition without a usable
+  query backend (or an older DSH line) keeps distilling instead of going silent;
+  a failed observation logs and falls back.
+
+Because the observation is async, the work queue is claimed before the read and
+the `too-short` skip is now reported from the job instead of before it. Suite
+stays at 88; the host-wiring guard additionally requires `observeSession` and
+the injected service.
+
 ## 0.3.0 (2026-09-30)
 
 ### Capture subagent results, the one content class memory never saw

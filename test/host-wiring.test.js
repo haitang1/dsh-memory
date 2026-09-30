@@ -38,9 +38,20 @@ test('host wiring: exposes the full tool surface, the turn hook, and the skill',
 test('host wiring: reads session events through the Surface layer', async () => {
   const source = await readFile(new URL('../lib/index.js', import.meta.url), 'utf8')
   assert.match(source, /\.snapshotEvents\(/,
-    'must call session.snapshotEvents (DSH 0.1.2-rc.1 replaced Session.events with the Surface layer)')
+    'must keep a session.snapshotEvents fallback (DSH 0.1.2-rc.1 replaced Session.events with the Surface layer)')
   assert.doesNotMatch(source, /\.events\.entries\(\)/,
     'must not call session.events.entries() (removed in DSH 0.1.2-rc.1; throws on every turn summarization)')
+  // DSH 0.2.0-rc.2 deprecates snapshotEvents ("new calls are prohibited"), so
+  // the forward path is a sessionQuery observation lease. Its events are the
+  // raw log: deriveMessages() would drop compaction-shadowed content.
+  assert.match(source, /sessionQuery\.observeSession\(|query\.observeSession\(/,
+    'must read turns through sessionQuery.observeSession')
+  assert.match(source, /inject\(\['sessionQuery'\]/,
+    'must wait for the sessionQuery service instead of reading it at boot')
+  // Comments may name the API we refuse to use; only real calls matter.
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+  assert.doesNotMatch(code, /deriveMessages\(/,
+    'must never read turn content through deriveMessages (drops compaction-shadowed events)')
 })
 
 test('host wiring: waits for the llm service via inject instead of a boot-time ctx.get', async () => {
