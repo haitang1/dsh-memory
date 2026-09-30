@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **Auto memory** — on each finished turn of a root agent, the new conversation text is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.2.15** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.2.16** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
@@ -190,10 +190,10 @@ Tools accept a `scope` argument (`global` | `workspace` | `project`); the projec
 
 ## Development & testing
 
-`npm test` runs 84 tests (node:test):
+`npm test` runs 86 tests (node:test):
 
 - `test/store.test.js` — store semantics, journal, history, archiving, scopes;
-- `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain (including the `describe()`-based read on DSH 0.1.7), and `extractMessageText` (user/assistant event shapes);
+- `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain (including the `describe()`-based read on DSH 0.1.7), `extractMessageText` (user/assistant event shapes), and the bounded tool-activity digest (`formatToolCall`/`formatToolResult`);
 - `test/browser.test.js` — the interactive HTML browser snapshot rendering;
 - `test/web-settings.test.js` — the settings endpoint lifecycle (GET/POST, 403/409, body limits), the namespace probe that finds `memory` or the 0.1.7 loader-row id, plus VM-sandbox loads of the client bundle asserting both card registrations (the 0.1.5 `settings.plugin.item` card and the 0.1.7 `plugins.row.config` form);
 - `test/volatile.test.js` — the DSH 0.1.7 volatile seam: marking a schema field live-editable only where the schema library supports it, recognizing a cosmokit Volatile box by its globally registered write hook, and reading a whole resolved config back as plain values;

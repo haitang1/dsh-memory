@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.2.16 (2026-09-30)
+
+### Distill tool activity, and drop retired DSH vocabulary
+
+Turn distillation read only `user/message` and `assistant/message` text blocks,
+so a coding turn reached memory as prose while the part that usually carries
+the durable knowledge — the command that ran, the test that failed, the fix
+that passed — was dropped: `tool/call` and `tool/result` are separate session
+events. `extractTurnText` now appends a bounded digest of the turn's tool
+activity, formatted by two new pure helpers in `lib/automation.js`:
+
+- `formatToolCall` — `[tool] <name> <arguments>`, whitespace collapsed, arguments
+  clipped (≤240 chars), so a call is one readable line;
+- `formatToolResult` — `[tool result] ok|error: <reason or first text block>`,
+  preferring the harness-recorded error reason over the model-facing content.
+
+The digest has its own byte budget (≤4000 chars, at most half of
+`MAX_TURN_INPUT_BYTES`) and is appended under a `[tool activity]` marker after
+the conversation text, so trimming the conversation cannot drop it.
+
+Also removes three pieces of retired vocabulary that the 0.2.0-rc.2 audit
+surfaced (behaviour-neutral; each was wrong or inert):
+
+- Synthesized LLM calls now send a producer-named source (`{ kind: 'dsh-memory' }`),
+  matching first-party ephemeral calls such as `dsh-session-title-llm`. The
+  generic v3 `{ kind: 'plugin', plugin }` pair no longer exists in the v4
+  message-source map.
+- The keyed `plugins.row.config` registration no longer passes `order`/`label`:
+  those belong to list slots and are ignored (type-invalid) on a keyed one.
+- `dsh.client.inject` no longer lists `@deepseek-ai/dsh-client-runtime`, which
+  does not exist in 0.2.0-rc.2; the bundle loads `react` (host-provided) and
+  `@deepseek-ai/dsh-client-ui-primitives`.
+
+Suite 84 → 86 (`formatToolCall` / `formatToolResult`).
+
 ## 0.2.15 (2026-09-30)
 
 ### Verified on DSH 0.2.0-rc.2; no code change required

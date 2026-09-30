@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.2.15** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.2.16** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -173,10 +173,10 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## 开发与测试
 
-`npm test` 运行 84 项测试（node:test）：
+`npm test` 运行 86 项测试（node:test）：
 
 - `test/store.test.js` —— 存储语义、journal、历史、归档、作用域；
-- `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链（含 DSH 0.1.7 上经 `describe()` 的读取）、`extractMessageText`（user/assistant 事件结构）；
+- `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链（含 DSH 0.1.7 上经 `describe()` 的读取）、`extractMessageText`（user/assistant 事件结构），以及有界的工具活动摘要（`formatToolCall`/`formatToolResult`）；
 - `test/browser.test.js` —— 交互式 HTML 浏览器的快照渲染；
 - `test/web-settings.test.js` —— 设置端点生命周期（GET/POST、403/409、体积限制）、在 `memory` 与 0.1.7 加载行 id 之间探测命名空间，以及 VM 沙箱加载客户端 bundle 断言两种卡片注册（0.1.5 的 `settings.plugin.item` 卡片与 0.1.7 的 `plugins.row.config` 表单）；
 - `test/volatile.test.js` —— DSH 0.1.7 的 volatile 接缝：仅在 schema 库支持时把字段标记为可实时编辑、按全局注册的写钩子识别 cosmokit Volatile 盒、以及把整份解析后的配置读回为普通值；

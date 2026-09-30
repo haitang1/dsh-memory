@@ -1,7 +1,14 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { AUTO_MEMORY_SKILL, extractMessageText, resolveSummarizeRoute } from '../lib/automation.js'
+import {
+  AUTO_MEMORY_SKILL,
+  extractMessageText,
+  formatToolCall,
+  formatToolResult,
+  resolveSummarizeRoute,
+  TOOL_DIGEST_ENTRY_CHARS
+} from '../lib/automation.js'
 
 function resolved(overrides = {}) {
   return {
@@ -90,6 +97,40 @@ test('extractMessageText ignores tool-call blocks and malformed data', () => {
   assert.equal(extractMessageText({ content: 'not-an-array' }), '')
 })
 
+test('formatToolCall digests a tool call into one bounded line', () => {
+  // Real whitespace in the raw argument JSON is collapsed to keep one line per call.
+  const line = formatToolCall({ turn: 1, step: 1, callId: 'c1', name: 'bash', arguments: '{\n  "command": "npm test"\n}' })
+  assert.equal(line, '[tool] bash { "command": "npm test" }')
+  // Arguments are flattened and clipped so one entry cannot dominate the turn.
+  const long = formatToolCall({ name: 'bash', arguments: 'x'.repeat(TOOL_DIGEST_ENTRY_CHARS * 2) })
+  assert.ok(long.length < TOOL_DIGEST_ENTRY_CHARS * 2, 'long arguments are clipped')
+  assert.ok(long.endsWith('…'))
+  assert.equal(formatToolCall({ name: 'bash' }), '[tool] bash')
+  assert.equal(formatToolCall({ name: '' }), '')
+  assert.equal(formatToolCall(undefined), '')
+  assert.equal(formatToolCall(null), '')
+  assert.equal(formatToolCall('not-an-object'), '')
+})
+
+test('formatToolResult reports status and the reason or first text block', () => {
+  const ok = formatToolResult({
+    turn: 1,
+    step: 1,
+    message: { id: 't1', role: 'tool', source: { kind: 'tool', callId: 'c1' }, content: [{ type: 'text', text: '6 passing\n0 failing' }] }
+  })
+  assert.equal(ok, '[tool result] ok: 6 passing 0 failing')
+  const failed = formatToolResult({
+    message: { id: 't2', role: 'tool', source: { kind: 'tool', callId: 'c2' }, content: [], isError: true },
+    error: { name: 'ToolError', code: 'E_TIMEOUT', reason: 'timed out after 60s' }
+  })
+  assert.equal(failed, '[tool result] error: timed out after 60s')
+  // An error result without a reason still names the status.
+  assert.equal(formatToolResult({ message: { content: [], isError: true } }), '[tool result] error')
+  assert.equal(formatToolResult({ message: { content: [] } }), '[tool result] ok')
+  assert.equal(formatToolResult(undefined), '')
+  assert.equal(formatToolResult('not-an-object'), '')
+})
+
 test('AUTO_MEMORY_SKILL advertises proactive memory behavior', () => {
   assert.equal(AUTO_MEMORY_SKILL.name, 'auto-memory')
   assert.equal(typeof AUTO_MEMORY_SKILL.description, 'string')
@@ -117,4 +158,9 @@ test('server entry retains the runtime definitions required by apply', async () 
   for (const name of ['MIN_TURN_BYTES', 'MAX_TURN_INPUT_BYTES', 'DEFAULT_SUMMARIZE_DEBOUNCE_MS', 'CONSOLIDATE_INTERVAL_MS', 'LLM_TIMEOUT_MS', 'MAX_ROLLOUT_FILES']) {
     assert.match(source, new RegExp(`const ${name}\\b`), `${name} must remain defined in the server entry`)
   }
+  // The turn extractor must keep folding tool events into the distill input:
+  // reading only message events drops every trace of what the turn executed.
+  assert.match(source, /event\.type === 'tool\/call'/, 'tool/call events must be digested')
+  assert.match(source, /event\.type === 'tool\/result'/, 'tool/result events must be digested')
+  assert.match(source, /\[tool activity\]/, 'the digest must be marked in the distill input')
 })

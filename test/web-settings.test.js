@@ -545,7 +545,10 @@ test('client bundle registers the DSH 0.1.7 Plugins-page form on the row-config 
   assert.equal(registration.options.name, 'plugins.row.config')
   assert.equal(registration.options.key, '@dsh-external/dsh-memory#dsh-memory')
   assert.equal(registration.options.locale, 'dsh-memory')
-  assert.equal(registration.options.label(), 't:nav')
+  // A keyed slot dispatches by key alone; `order`/`label` are list-slot fields
+  // and are ignored (type-invalid) here, so they must not be passed.
+  assert.equal(registration.options.order, undefined)
+  assert.equal(registration.options.label, undefined)
   assert.equal(modelCalls.constructed, 1)
 
   const face = registration.options.inject()
