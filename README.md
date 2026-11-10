@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **Auto memory** — on each finished turn of a root agent, the new conversation text (plus a bounded digest of the tools it ran, and of any subagent’s final answer) is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.5.0** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.5.1** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
@@ -84,6 +84,8 @@ Pinning a commit is recommended (`f3c8de4` is the `v0.2.7` release commit); omit
 The Web settings form (see below) edits every config field live; keys are likewise overridable through the loader row or the `memory:` section of `settings.yaml`. Settings resolve as schema defaults → composition `base` → **user layer**, and the user layer wins, so the form persists **only the fields you changed** and a field saved back at its default drops its user-layer entry instead of pinning the default. See [Upgrade notes](#upgrade-notes).
 
 ## Upgrade notes
+
+**0.5.1 keeps the memory injection installed across plugin reloads.** Nothing to do beyond installing the new files and restarting DSH: the injection now waits for the `systemPrompt` service through `ctx.inject` instead of a boot-time `ctx.get`, so a plugin re-applied into a running host (a settings-triggered loader reload, a disable/enable cycle) no longer drops `# DSH memory` silently. Memory data and settings are untouched.
 
 **0.5.0 dropped the DSH 0.1.5 line and fixed secret redaction.** Two consequences for an existing install:
 
@@ -163,7 +165,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 The plugin ships a Web client bundle that registers the configuration form for its own row on the **Plugins page** (Settings → Plugins → Plugin config) — no extra step beyond the deploy sync. The form edits **every** live-editable config field through the Host settings seam, which the plugin's own same-origin endpoint (`/_dsh/memory/settings`, registered by the host half) mirrors for programmatic readers. Copy is localized (English/Chinese) and follows DSH's language setting; `embeddingApiKey` is a write-only secret (see below), and `memoryDir` changes require a DSH restart.
 
-**Supported DSH lines: 0.1.7 and 0.2.x.** 0.1.7-rc.1 replaced the settings provider with `SettingsForms`, made the loader-row config the settings document, and generates forms only for `meta.volatile` fields; the form is the configuration of this bundle's own loader row (`dsh-memory`), registered into the keyed `plugins.row.config` slot and gated by `configForms.whileServed`. Verified live on **0.1.7-rc.1**, **0.2.0-rc.1** and **0.2.0-rc.2**: all 14 tools registered, the settings endpoint working, a write → summarize → consolidate round-trip with zero errors, and the peer gate re-evaluated with `includePrerelease` on rc.2. The **0.1.5 line is no longer supported** as of 0.5.0 — its provider-side `settings.register('memory', …)` seam and the standalone card that rendered into `settings.plugin.item` both went away with it, and `peerDependencies` are now `dsh-llm` / `dsh-settings` / `dsh-tools` `^0.1.7-rc.1 || ^0.2.0-rc.1` (plus `cordis` `^4.0.1`, `schemastery` `^3.18.0`). Deployments still on 0.1.5 must stay on 0.4.x.
+**Supported DSH lines: 0.1.7 and 0.2.x.** 0.1.7-rc.1 replaced the settings provider with `SettingsForms`, made the loader-row config the settings document, and generates forms only for `meta.volatile` fields; the form is the configuration of this bundle's own loader row (`dsh-memory`), registered into the keyed `plugins.row.config` slot and gated by `configForms.whileServed`. Verified live on **0.1.7-rc.1**, **0.2.0-rc.1**, **0.2.0-rc.2** and **0.2.2-rc.1**: all 14 tools registered, the settings endpoint working, a write → summarize → consolidate round-trip with zero errors, and the peer gate re-evaluated with `includePrerelease` on rc.2. The **0.1.5 line is no longer supported** as of 0.5.0 — its provider-side `settings.register('memory', …)` seam and the standalone card that rendered into `settings.plugin.item` both went away with it, and `peerDependencies` are now `dsh-llm` / `dsh-settings` / `dsh-tools` `^0.1.7-rc.1 || ^0.2.0-rc.1` (plus `cordis` `^4.0.1`, `schemastery` `^3.18.0`). Deployments still on 0.1.5 must stay on 0.4.x.
 
 ## Automatic memory & the auto-memory skill
 

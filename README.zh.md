@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话（连同该轮工具活动的有界摘要、以及各子代理最终答复的摘录）蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.5.0** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.5.1** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -84,6 +84,8 @@ dsh plugin --profile web add 'github:haitang1/dsh-memory#f3c8de4'
 Web 设置页表单（见下文）可在线编辑**全部配置项**；各键亦可通过 loader 配置或 `settings.yaml` 的 `memory:` 段覆盖。配置解析顺序为 schema 默认 → 组合 `base` → **user 层**，user 层优先级最高，因此卡片只持久化**你改动过的字段**；把字段改回默认值时会删除其 user 层条目，而不是把默认值写死。详见[升级须知](#升级须知)。
 
 ## 升级须知
+
+**0.5.1 让记忆注入在插件被重新 apply 后仍然生效。** 装新文件并重启 DSH 即可，无需其他操作：注入改为经 `ctx.inject` 等待 `systemPrompt` 服务，而不是在启动时 `ctx.get`，因此插件被宿主重新 apply（保存设置触发的 loader 重载、插件关闭再启用）后不会再静默丢掉 `# DSH memory`。记忆数据与配置不受影响。
 
 **0.5.0 放弃 DSH 0.1.5 旧线并修复密钥脱敏。** 对已有安装有两点影响：
 
@@ -163,7 +165,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 插件自带 Web 客户端 bundle，会在**插件页**（设置 → 插件 → 插件配置）为本插件自己的行注册配置表单，除部署同步外无需额外步骤。表单可编辑**全部可实时生效的配置项**，写入走宿主设置接缝；插件自己的同源端点（`/_dsh/memory/settings`，由 host 半部分注册）为程序化读者镜像同一份配置。文案中英双语，跟随 DSH 语言设置；`embeddingApiKey` 是只写密钥（见下），`memoryDir` 更改需重启 DSH。
 
-**支持的 DSH 线：0.1.7 与 0.2.x。** 0.1.7-rc.1 把设置提供方换成 `SettingsForms`、以加载行 config 作为设置文档、只为 `meta.volatile` 字段生成表单；表单就是本 bundle 自己加载行（`dsh-memory`）的配置，注册进 keyed 槽位 `plugins.row.config` 并由 `configForms.whileServed` 把关。已在 **0.1.7-rc.1**、**0.2.0-rc.1**、**0.2.0-rc.2** 实测：14 个工具全部注册、设置端点可用、写入 → 摘要 → 合并全链路零错误，rc.2 上另按 `includePrerelease` 复算了 peer 门禁。**自 0.5.0 起不再支持 0.1.5 线**——它依赖的提供方侧 `settings.register('memory', …)` 接缝与渲染进 `settings.plugin.item` 的独立卡片都已随之移除，`peerDependencies` 现为 `dsh-llm` / `dsh-settings` / `dsh-tools` `^0.1.7-rc.1 || ^0.2.0-rc.1`（另有 `cordis` `^4.0.1`、`schemastery` `^3.18.0`）。仍停留在 0.1.5 的部署请保持 0.4.x。
+**支持的 DSH 线：0.1.7 与 0.2.x。** 0.1.7-rc.1 把设置提供方换成 `SettingsForms`、以加载行 config 作为设置文档、只为 `meta.volatile` 字段生成表单；表单就是本 bundle 自己加载行（`dsh-memory`）的配置，注册进 keyed 槽位 `plugins.row.config` 并由 `configForms.whileServed` 把关。已在 **0.1.7-rc.1**、**0.2.0-rc.1**、**0.2.0-rc.2**、**0.2.2-rc.1** 实测：14 个工具全部注册、设置端点可用、写入 → 摘要 → 合并全链路零错误，rc.2 上另按 `includePrerelease` 复算了 peer 门禁。**自 0.5.0 起不再支持 0.1.5 线**——它依赖的提供方侧 `settings.register('memory', …)` 接缝与渲染进 `settings.plugin.item` 的独立卡片都已随之移除，`peerDependencies` 现为 `dsh-llm` / `dsh-settings` / `dsh-tools` `^0.1.7-rc.1 || ^0.2.0-rc.1`（另有 `cordis` `^4.0.1`、`schemastery` `^3.18.0`）。仍停留在 0.1.5 的部署请保持 0.4.x。
 
 ## 自动记忆与 auto-memory 技能
 

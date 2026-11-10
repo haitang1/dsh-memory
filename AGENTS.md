@@ -5,7 +5,7 @@
 ## 1. 项目概览
 
 - **定位**：DeepSeek Harness（DSH）的类 Codex 持久记忆插件——全局摘要注入每次提示词、14 个 `memory_*` 工具读写、每轮自动蒸馏、定期合并、版本化回滚；另附独立 stdio MCP server 与 Web 设置表单（插件页行配置）。
-- **当前版本**：0.5.0（MIT，ESM，`engines: node >= 20.3`）。
+- **当前版本**：0.5.1（MIT，ESM，`engines: node >= 20.3`）。
 - **零运行时第三方依赖**：`dependencies` 为空，只有 `peerDependencies`（见红线 3）。仓库无 lockfile、无构建步骤、无 lint/typecheck——保持可读可跑，防漂移靠 `npm run check`。
 
 ## 2. 架构与模块地图
@@ -84,7 +84,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 5. `git commit`（信息含 release: vX.Y.Z 摘要）→ `git tag -a v<ver> -m <摘要>` → `git push origin main` + 推送标签。
 - 版本号/测试数/工具数任何一处与 README 不一致，`npm run check` 会红——这是特性，不是烦恼。
 - **改 schema 默认值时必须评估 user 层覆盖**：user 层优先级最高，旧版本固化过的旧默认值会继续覆盖新默认，使这次「修复」对已装实例完全无效（0.2.11 的 8192 就是这样被 user 层的 3000 压住的）。改默认值必须配套：运行时底线或迁移、CHANGELOG 写明升级影响与手工清理方式、README 的 Upgrade notes / 升级须知同步。
-- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11 / v0.2.12 / v0.2.13 / v0.2.14 / v0.2.15 / v0.2.16 / v0.3.0 / v0.3.1 / v0.3.2 / v0.4.0 / v0.5.0（更早版本未补标签）。
+- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11 / v0.2.12 / v0.2.13 / v0.2.14 / v0.2.15 / v0.2.16 / v0.3.0 / v0.3.1 / v0.3.2 / v0.4.0 / v0.5.0 / v0.5.1（更早版本未补标签）。
 - **`npm run check` 必须在任意 reporter 下可解析**：Node 25 在 stdout 非 TTY 时默认 `spec`（`ℹ tests N`），脚本已固定 `--test-reporter=tap` 并保留 fallback 解析；改动该脚本时不要退回只认 TAP 的正则。
 
 ## 8. 部署（现状）
@@ -116,6 +116,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 | **注入预算只有字节** | `maxBytes` 默认 8000 只能表达字节量，而同样字节数的中英文 token 数相差数倍；且字节预算无法表达「这个模型上下文多大」。实测线上摘要 7848 B 已贴近 8000 B 上限 | 默认 `maxBytes` 提到 **16000**，并新增 `injectTokens`（默认 0 = 只按字节）用本地无依赖估算器按 token 再设上限（中文 ≈ 1 token/字符，拉丁 ≈ 1/4）（v0.3.2） |
 | **子代理产出不入记忆** | 蒸馏只由 `agent/turn-stopping` 驱动且仅对根会话生效，子代理（研究/探索/验证的产出）此前 100% 被跳过；`subagent/end` 的载荷又没有父会话身份，只有「以委派父代理为 key 的 scope carrier」 | 把 `subagent/end` 监听器注册到**父代理自己的 `agent.ctx`**（`agent/created` + turn-stopping 补挂），用纯函数 `formatSubagentResult` 把最终答复作为 rollout 块追加（≤2000 字符、去重、无额外 LLM 调用），新增 `captureSubagents`（v0.3.0） |
 | **蒸馏只读消息事件** | `extractTurnText` 只读 `user/message` / `assistant/message` 的 text block，而工具调用与结果是**独立事件**（`tool/call` / `tool/result`）——于是「跑了什么命令、哪个测试失败、怎么修的」全部进不了记忆，摘要里只剩寒暄式散文 | 新增 `formatToolCall`/`formatToolResult` 纯函数生成有界单行摘要，`extractTurnText` 以独立预算（≤4000 字符）追加在 `[tool activity]` 标记后，截断正文不影响它（v0.2.16） |
+| **systemPrompt 注入静默丢失** | 插件在宿主进程内被重新 apply 时，`ctx.get('systemPrompt')` 可能为空——注入钩子被静默跳过，工具/设置端点/蒸馏全部正常，只有 `# DSH memory` 从提示词里消失，且无任何错误日志（与 0.1.2-rc.1 的 `ctx.get('llm')` 同型；2026-11-10 适配审计确认该风险模式） | 改为 `ctx.inject(['systemPrompt'], …)`（DSH 0.2.2-rc.1 一方插件 `dsh-user-approval` 即此写法）；`text()` 的 catch 首次失败记 warn；host-wiring 守卫禁止 `ctx.get('systemPrompt')` 并要求 `inject(['systemPrompt'])`（v0.5.1，2026-11-10） |
 | 常态 | DSH pre-1.0，同一 `^0.1.x` 范围内 API 可破 | 升级前验证；用 host-wiring 守卫兜底 |
 
 **维护提示**：本文件是与代码平行的文档，改版本/工具数/CI/部署方式时同步更新；若与仓库不一致，以 package.json / lib / README / CHANGELOG 为准（并修本文件）。

@@ -36,6 +36,14 @@ test('host wiring: exposes the full tool surface, the turn hook, and the skill',
   }
   assert.match(source, /agent\/turn-stopping/, 'must subscribe to agent/turn-stopping for auto-summarization')
   assert.match(source, /systemPrompt\.context\(/, 'must install a systemPrompt.context injection')
+  // The systemPrompt service can be registered after this bundle boots (a plugin
+  // re-applied into a running host). Capturing it with a boot-time ctx.get would
+  // drop the injection silently, so only the injected service counts.
+  assert.match(source, /inject\(\['systemPrompt'\]/,
+    'must wait for the systemPrompt service via inject (a boot-time ctx.get silently drops the memory injection)')
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+  assert.doesNotMatch(code, /ctx\.get\('systemPrompt'\)/,
+    'must not capture systemPrompt once at boot; wait for the injected service')
   assert.match(source, /AUTO_MEMORY_SKILL/, 'must register the auto-memory runtime skill')
 })
 
@@ -189,15 +197,11 @@ test('host wiring: apply() wires up on DSH 0.1.7, where settings.register() no l
     tools: null,
     skills: null,
     webServer: null,
-    get(name) {
-      if (name === 'systemPrompt') {
-        return {
-          context: (cfg) => {
-            hook.systemPrompt = cfg
-            return () => {}
-          }
-        }
-      }
+    get() {
+      // No boot-time systemPrompt on purpose: a plugin re-applied into a running
+      // host only sees the service through inject(), so the injection must be
+      // registered from that callback (a ctx.get('systemPrompt') here would stay
+      // undefined and the test would fail on hook.systemPrompt below).
       return undefined
     },
     inject(names, cb) {
@@ -205,6 +209,12 @@ test('host wiring: apply() wires up on DSH 0.1.7, where settings.register() no l
       if (names.includes('tools')) this.tools = { register: (def) => { hook.tools.push(def); return () => {} } }
       if (names.includes('skills')) this.skills = { register: (skill) => { hook.skills.push(skill); return () => {} } }
       if (names.includes('webServer')) this.webServer = { register: (route) => { hook.routes.push(route); return () => {} } }
+      if (names.includes('systemPrompt')) this.systemPrompt = {
+        context: (cfg) => {
+          hook.systemPrompt = cfg
+          return () => {}
+        }
+      }
       cb(this)
     },
     on(event, handler) {
@@ -226,6 +236,7 @@ test('host wiring: apply() wires up on DSH 0.1.7, where settings.register() no l
     assert.equal(hook.tools.length, TOOL_NAMES.length, 'all memory_* tools must still be registered')
     assert.ok(hook.skills.some((skill) => skill.name === 'auto-memory'), 'auto-memory skill must still be registered')
     assert.equal(hook.systemPrompt.name, 'dsh-memory', 'systemPrompt.context must still be installed')
+    assert.equal(typeof hook.systemPrompt.text, 'function', 'the injection text must be resolved lazily per prompt')
     assert.ok(hook.routes.length >= 1, 'the same-origin settings route must still be registered')
 
     // Volatile fields arrive boxed: an unhandled box would fall back to the schema

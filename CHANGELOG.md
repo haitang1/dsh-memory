@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.5.1 (2026-11-10)
+
+### Keep the memory injection installed when the host re-applies the plugin
+
+The `systemPrompt.context()` provider was installed from a boot-time
+`ctx.get('systemPrompt')`. When DSH re-applies the plugin into a running host —
+a loader reload after a settings save, or a plugin disable/enable cycle — that
+lookup can come back empty, and the registration was skipped **silently**: the
+tools, the settings endpoint and auto-distillation all kept working, while every
+prompt quietly lost `# DSH memory`. The plugin looked healthy and the memory
+stopped being visible to the model.
+
+The registration now waits for the service through
+`ctx.inject(['systemPrompt'], …)`, the same seam first-party plugins use
+(`dsh-user-approval`, `dsh-sandbox-policy`), and the injection text provider logs
+the first read failure instead of returning `''` with no trace.
+`test/host-wiring.test.js` guards the regression: the source must not capture
+`systemPrompt` with a boot-time `ctx.get(...)`, the injected registration must
+exist, and the `apply()` smoke now runs against a context that can only obtain
+the service through `inject()`.
+
+Verified on DSH **0.2.2-rc.1** (desktop, after a restart): 14 tools registered,
+`GET /_dsh/memory/settings` 200, the injection present again, and the suite is
+93/93 with the harness packages resolvable (90 pass + 3 host-wiring skips in the
+zero-dependency CI shape).
+
 ## 0.5.0 (2026-09-30)
 
 ### Drop the DSH 0.1.5 line, and make the secret mark actually apply
