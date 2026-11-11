@@ -274,7 +274,7 @@ test('host wiring: persistence redacts, deferred work is disposable, and budget 
     'turn summaries must be redacted before they are appended to the rollout file')
   assert.match(source, /redactForStorage\(body, resolved\.redactSecrets\)/,
     'compaction/subagent excerpts must be redacted before they are appended')
-  assert.match(source, /redactForStorage\(bounded, resolved\.redactSecrets\)/,
+  assert.match(source, /redactForStorage\(finalSummary, resolved\.redactSecrets\)/,
     'the merged memory summary must be redacted before it is written')
   // Deferred work (debounce compensation, race retries, idle consolidation)
   // must be bounded and must not outlive the plugin.
@@ -291,4 +291,12 @@ test('host wiring: persistence redacts, deferred work is disposable, and budget 
     'memory_stats must report the budget high-water flag')
   assert.match(source, /rolloutWindow: window/,
     'memory_stats must report the rollout window state')
+  // A merge that still exceeds the target gets one bounded prune pass; the
+  // pruned output must be validated and re-bounded before it replaces the merge.
+  assert.match(source, /kind: 'prune'/, 'an over-target merge must run a second prune pass')
+  assert.match(source, /async function pruneSummary\(/, 'the prune pass must be a bounded, validated helper')
+  assert.match(source, /summaryTargetBytes\(summaryBudget\)/, 'the prune trigger must use the shared target helper')
+  assert.match(source, /validateMergedSummary\(bounded\)/, 'the pruned output must be validated after re-bounding')
+  assert.match(source, /lastConsolidationPrunedAt: runtimeStats\.lastConsolidationPrunedAt/,
+    'memory_stats must report the last prune time')
 })

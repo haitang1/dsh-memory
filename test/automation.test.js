@@ -14,6 +14,7 @@ import {
   nextRetryDelay,
   resolveSummarizeRoute,
   rolloutWindowState,
+  summaryTargetBytes,
   COMPACTION_EXCERPT_MIN_CHARS,
   SUBAGENT_EXCERPT_CHARS,
   SUBAGENT_EXCERPT_MIN_CHARS,
@@ -253,4 +254,12 @@ test('rolloutWindowState reports files beyond the consolidation window', () => {
   assert.deepEqual(rolloutWindowState(18, 64), { files: 18, limit: 64, overflow: false })
   assert.deepEqual(rolloutWindowState(65, 64), { files: 65, limit: 64, overflow: true })
   assert.deepEqual(rolloutWindowState(Number.NaN, 0), { files: 0, limit: 1, overflow: false })
+})
+
+test('summaryTargetBytes keeps the merge under the high-water mark', () => {
+  assert.equal(summaryTargetBytes(16_000), 14_400)
+  assert.equal(summaryTargetBytes(20_000), 18_000)
+  // Tiny or broken budgets still produce a usable target instead of 0.
+  assert.equal(summaryTargetBytes(512), 1024)
+  assert.equal(summaryTargetBytes(Number.NaN), 1024)
 })

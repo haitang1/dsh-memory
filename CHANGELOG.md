@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.5.3 (2026-11-11)
+
+### Force the consolidated summary to fit its budget
+
+0.5.2 added a prompt-level target ("keep the merge at or below 90% of the
+budget") plus truncation visibility; the live deployment showed the prompt alone
+does not work — three merges in a row landed at 15.9–16.0 KB and were
+hard-truncated at the 16,000-byte cap (v57/v58/v59, with
+`lastConsolidationTruncatedAt` advancing every time), so the newest facts at the
+tail risked being cut.
+
+When a merge still exceeds `summaryTargetBytes(maxBytes)` (90% of the budget,
+minimum 1 KiB), consolidation now spends one extra bounded LLM call
+(`kind: 'prune'`) asking the curator to rewrite the merged summary down to that
+target while keeping the structure and version line. The result is validated
+(`validateMergedSummary` + version check) and re-bounded before it can replace
+the merge; a malformed or failed prune keeps the merged summary and records the
+error, and the hard byte truncation stays only as the final fallback.
+
+Telemetry now separates the two events: `lastConsolidationPrunedAt` (a prune ran)
+versus `lastConsolidationTruncatedAt` (the final write still had to be truncated,
+i.e. the real failure). Both are surfaced in `memory_stats` and
+`diagnostics.json`.
+
+Tests: 98 → 99 (`summaryTargetBytes` plus source guards for the prune pass).
+
 ## 0.5.2 (2026-11-11)
 
 ### Keep the memory pipeline caught up: budget visibility, retries, idle consolidation, redacted writes
