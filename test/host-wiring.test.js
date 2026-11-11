@@ -299,4 +299,12 @@ test('host wiring: persistence redacts, deferred work is disposable, and budget 
   assert.match(source, /validateMergedSummary\(bounded\)/, 'the pruned output must be validated after re-bounding')
   assert.match(source, /lastConsolidationPrunedAt: runtimeStats\.lastConsolidationPrunedAt/,
     'memory_stats must report the last prune time')
+  // Models cannot count bytes; both consolidation prompts must carry a character
+  // budget and the prune effect must be observable.
+  assert.match(source, /summaryTargetChars\(summaryBudget\)/,
+    'the prompts must derive a character budget from the byte target')
+  assert.match(source, /under \$\{targetChars\} characters/, 'the merge prompt must give a character budget')
+  assert.match(source, /at most \$\{targetChars\} characters/, 'the prune prompt must give a character budget')
+  assert.match(source, /lastPrune: consolidationTelemetry\.lastPrune/, 'diagnostics must record the prune effect')
+  assert.match(source, /lastPrune: runtimeStats\.lastPrune/, 'memory_stats must report the prune effect')
 })

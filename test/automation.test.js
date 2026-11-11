@@ -15,6 +15,7 @@ import {
   resolveSummarizeRoute,
   rolloutWindowState,
   summaryTargetBytes,
+  summaryTargetChars,
   COMPACTION_EXCERPT_MIN_CHARS,
   SUBAGENT_EXCERPT_CHARS,
   SUBAGENT_EXCERPT_MIN_CHARS,
@@ -262,4 +263,12 @@ test('summaryTargetBytes keeps the merge under the high-water mark', () => {
   // Tiny or broken budgets still produce a usable target instead of 0.
   assert.equal(summaryTargetBytes(512), 1024)
   assert.equal(summaryTargetBytes(Number.NaN), 1024)
+})
+
+test('summaryTargetChars converts the byte target with the CJK worst case', () => {
+  assert.equal(summaryTargetChars(16_000), 4800)
+  assert.equal(summaryTargetChars(24_000), 7200)
+  // The 1 KiB floor divided by 3 still leaves a usable character budget.
+  assert.equal(summaryTargetChars(512), 512)
+  assert.equal(summaryTargetChars(Number.NaN), 512)
 })

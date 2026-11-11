@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话（连同该轮工具活动的有界摘要、以及各子代理最终答复的摘录）蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.5.3** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.5.4** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -84,6 +84,8 @@ dsh plugin --profile web add 'github:haitang1/dsh-memory#v0.5.2'
 Web 设置页表单（见下文）可在线编辑**全部配置项**；各键亦可通过 loader 配置或 `settings.yaml` 的 `memory:` 段覆盖。配置解析顺序为 schema 默认 → 组合 `base` → **user 层**，user 层优先级最高，因此卡片只持久化**你改动过的字段**；把字段改回默认值时会删除其 user 层条目，而不是把默认值写死。详见[升级须知](#升级须知)。
 
 ## 升级须知
+
+**0.5.4 让模型按「字符」而不是「字节」控制摘要长度。** 模型数不了字节，0.5.3 的字节目标仍让摘要停在预算 99%。现在两个提示词都给字符预算（`summaryTargetChars`：字节目标 / 3，按中文最坏情况换算）并附当前字符数；硬上限仍是 `maxBytes`，不会为了 90% 目标再截一次尾（避免切掉最新事实）。`memory_stats` 与 `diagnostics.json` 新增 `lastPrune { beforeBytes, afterBytes, targetBytes, targetChars }`，prune 效果可见。
 
 **0.5.3 强制合并结果落回预算内。** 0.5.2 的提示词目标不够用：合并结果持续贴着 16 KB 上限被截断，最新事实可能被切掉。当合并结果仍超过预算 90% 时，会追加一次有界的 LLM 调用（`kind: 'prune'`）把摘要改写到目标大小；prune 输出畸形/失败则保留合并结果，硬截断只作最后兜底。`memory_stats` 新增 `lastConsolidationPrunedAt`，而 `lastConsolidationTruncatedAt` 现在表示「最终写盘真的被截断」；额外调用只在超目标期间发生。
 
@@ -190,16 +192,16 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## 开发与测试
 
-`npm test` 运行 99 项测试（node:test）：
+`npm test` 运行 100 项测试（node:test）：
 
 - `test/store.test.js` —— 存储语义、journal、历史、归档、作用域，以及 `redactForStorage`（写盘前脱敏，开关可关闭）；
-- `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链（含 DSH 0.1.7 上经 `describe()` 的读取）、`extractMessageText`（user/assistant 事件结构）、有界的工具活动摘要（`formatToolCall`/`formatToolResult`）、子代理与 compaction 摘录格式化、注入预算使用的 token 估算/截断，以及新增可靠性路径背后的纯函数（`budgetState`、`rolloutWindowState`、`nextRetryDelay`、`summaryTargetBytes`）；
+- `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链（含 DSH 0.1.7 上经 `describe()` 的读取）、`extractMessageText`（user/assistant 事件结构）、有界的工具活动摘要（`formatToolCall`/`formatToolResult`）、子代理与 compaction 摘录格式化、注入预算使用的 token 估算/截断，以及新增可靠性路径背后的纯函数（`budgetState`、`rolloutWindowState`、`nextRetryDelay`、`summaryTargetBytes`、`summaryTargetChars`）；
 - `test/browser.test.js` —— 交互式 HTML 浏览器的快照渲染；
 - `test/web-settings.test.js` —— 设置端点生命周期（GET/POST、403/409、体积限制、密钥脱敏）、加载行命名空间解析，以及 VM 沙箱加载客户端 bundle 断言 `plugins.row.config` 表单注册、并确认已移除的 0.1.5 卡片不再存在；
 - `test/volatile.test.js` —— DSH 0.1.7 的 volatile 接缝：仅在 schema 库支持时把字段标记为可实时编辑、按全局注册的写钩子识别 cosmokit Volatile 盒、以及把整份解析后的配置读回为普通值；
 - `test/embedding.integration.test.js` —— fake `/embeddings` 服务 + 本地哈希向量；
 - `test/mcp.integration.test.js` —— 真实 MCP 子进程往返；
-- `test/host-wiring.test.js` —— 守卫 `lib/index.js` 的宿主对接面：裸字符串设置命名空间、`settingsNamespace` 辅助导出缺失、Surface 层 `snapshotEvents`（而非 `Session.events`）、`llm` 服务经 `inject(['llm'])` 等待（而非启动时 `ctx.get`）、`settings.mutate` 保存路径（不再全量 `replace`）与合并 token 底线、volatile 配置标记与 `loader/volatile-update` 镜像、14 个工具清单、`agent/turn-stopping`、`systemPrompt.context` 钩子、auto-memory 技能、三条写盘路径经 `redactForStorage`、`nextRetryDelay(` 与 dispose 定时器清理、`memory_stats` 的注入字节/预算水位/rollout 窗口字段、超目标时的 prune pass（第二次有界 LLM 调用，输出须先校验并重新限定预算才能替换合并结果），以及两条经 fake cordis ctx 的 `apply()` 冒烟（0.1.5 带 `register()` 的提供方，与 0.1.7 无 `register()`、需解盒并响应 volatile 提交的服务），均断言低于底线的 `consolidateMaxTokens` 被提升并上报（零依赖 CI 中跳过）。
+- `test/host-wiring.test.js` —— 守卫 `lib/index.js` 的宿主对接面：裸字符串设置命名空间、`settingsNamespace` 辅助导出缺失、Surface 层 `snapshotEvents`（而非 `Session.events`）、`llm` 服务经 `inject(['llm'])` 等待（而非启动时 `ctx.get`）、`settings.mutate` 保存路径（不再全量 `replace`）与合并 token 底线、volatile 配置标记与 `loader/volatile-update` 镜像、14 个工具清单、`agent/turn-stopping`、`systemPrompt.context` 钩子、auto-memory 技能、三条写盘路径经 `redactForStorage`、`nextRetryDelay(` 与 dispose 定时器清理、`memory_stats` 的注入字节/预算水位/rollout 窗口字段、超目标时的 prune pass（第二次有界 LLM 调用，两个提示词都带字符预算，输出须先校验并重新限定预算才能替换合并结果，`lastPrune` 效果可见），以及两条经 fake cordis ctx 的 `apply()` 冒烟（0.1.5 带 `register()` 的提供方，与 0.1.7 无 `register()`、需解盒并响应 volatile 提交的服务），均断言低于底线的 `consolidateMaxTokens` 被提升并上报（零依赖 CI 中跳过）。
 
 架构与机制说明见 [`docs/DESIGN.md`](docs/DESIGN.md)；部署状态见 [`docs/STATUS.md`](docs/STATUS.md)。
 

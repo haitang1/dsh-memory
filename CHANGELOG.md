@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.5.4 (2026-11-11)
+
+### Ask the curator for characters, not bytes
+
+0.5.3's prune pass removed the hard truncation (live check: v60 was written with
+`lastConsolidationTruncatedAt` untouched), but the pruned summary still landed at
+15,833 bytes — 99% of the budget instead of the 90% target — because the prompts
+asked the model to stay under a **byte** count, which models cannot measure (the
+merge shrank by only 36 bytes).
+
+Both consolidation prompts now give a character budget derived from the byte
+target (`summaryTargetChars`: target bytes / 3, the CJK worst case, minimum 512
+characters) and report the current character count. The 90% target is not
+enforced by a second truncation, because that would cut the newest facts at the
+tail; the hard cap at `maxBytes` stays the only truncation.
+
+The prune effect is now observable: `lastPrune { beforeBytes, afterBytes,
+targetBytes, targetChars, at }` is written to `diagnostics.json` and exposed by
+`memory_stats`, so an ineffective pass is visible instead of silent.
+
+Tests: 99 → 100 (`summaryTargetChars` plus guards that both prompts carry a
+character budget and that `lastPrune` reaches diagnostics and memory_stats).
+
 ## 0.5.3 (2026-11-11)
 
 ### Force the consolidated summary to fit its budget

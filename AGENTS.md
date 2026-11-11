@@ -5,7 +5,7 @@
 ## 1. 项目概览
 
 - **定位**：DeepSeek Harness（DSH）的类 Codex 持久记忆插件——全局摘要注入每次提示词、14 个 `memory_*` 工具读写、每轮自动蒸馏、定期合并、版本化回滚；另附独立 stdio MCP server 与 Web 设置表单（插件页行配置）。
-- **当前版本**：0.5.3（MIT，ESM，`engines: node >= 20.3`）。
+- **当前版本**：0.5.4（MIT，ESM，`engines: node >= 20.3`）。
 - **零运行时第三方依赖**：`dependencies` 为空，只有 `peerDependencies`（见红线 3）。仓库无 lockfile、无构建步骤、无 lint/typecheck——保持可读可跑，防漂移靠 `npm run check`。
 
 ## 2. 架构与模块地图
@@ -15,7 +15,7 @@
 | `lib/store.js` | 存储原语：raw/journal/summary 解析、序列化、BM25+bigram 搜索、本地 256 维哈希向量、远程 `/embeddings` 合并、凭据检测、`MemoryStore`（锁/原子写/作用域/归档/backfill）、`redactForStorage`（写盘前脱敏，与注入期脱敏分离） | **零 harness 依赖**（node builtins only） |
 | `lib/web.js` | 同源设置端点 `/_dsh/memory/settings`（GET/POST、同源校验、409 冲突、CSP） | 零 harness 依赖 |
 | `lib/browser.js` | 自包含单文件 HTML 记忆浏览器 | 零 harness 依赖 |
-| `lib/automation.js` | `AUTO_MEMORY_SKILL` 定义、`resolveSummarizeRoute` 路由回退链、`extractMessageText`（user/assistant 事件结构差异）、`formatToolCall`/`formatToolResult`（`tool/call`、`tool/result` 的有界单行摘要）、`formatSubagentResult`（子代理最终答复的有界摘录）、`formatCompactionSummary`（compaction 摘要的有界摘录）、`estimateTokens`/`truncateToTokens`（无依赖的 token 估算与按 token 截断）、`readSettingsNamespace`（0.1.7 无 `get()` 时经 `describe()` 读取）、`budgetState`/`rolloutWindowState`/`nextRetryDelay`/`summaryTargetBytes`（注入预算水位、rollout 窗口溢出、蒸馏重试退避、合并目标字节的纯函数） | 零 harness 依赖 |
+| `lib/automation.js` | `AUTO_MEMORY_SKILL` 定义、`resolveSummarizeRoute` 路由回退链、`extractMessageText`（user/assistant 事件结构差异）、`formatToolCall`/`formatToolResult`（`tool/call`、`tool/result` 的有界单行摘要）、`formatSubagentResult`（子代理最终答复的有界摘录）、`formatCompactionSummary`（compaction 摘要的有界摘录）、`estimateTokens`/`truncateToTokens`（无依赖的 token 估算与按 token 截断）、`readSettingsNamespace`（0.1.7 无 `get()` 时经 `describe()` 读取）、`budgetState`/`rolloutWindowState`/`nextRetryDelay`/`summaryTargetBytes`/`summaryTargetChars`（注入预算水位、rollout 窗口溢出、蒸馏重试退避、合并目标字节与字符预算的纯函数） | 零 harness 依赖 |
 | `lib/volatile.js` | DSH 0.1.7 的 volatile 接缝：`volatileField`（仅在 schema 支持时标记字段）、`secretField`（仅在 schema 支持 `role` 时把字段标为 secret，供宿主脱敏）、`isVolatileValue`/`unboxConfigValue`/`plainConfig`（把 cosmokit Volatile 盒读回普通值） | 零 harness 依赖 |
 | `lib/index.js` | 唯一宿主接线层：`apply()`（settings/tools/skills 注入、systemPrompt.context、turn-stopping、父代理作用域内的 subagent/end 捕获、session/event 的 compaction/summary 捕获）、`toolDefinitions()`（14 工具）、蒸馏/合并管线；`Config` 由 volatile 标记字段构建，配置一律经 `plainConfig` 解盒后使用 | **唯一允许 import `@deepseek-ai/*`**（dsh-llm / dsh-tools / schemastery） |
 | `lib/client.js` | Web 客户端 bundle：`plugins.row.config` 表单（keyed `<bundle>#<rowId>`，经 `configForms.whileServed`），en/zh 双语 24 字段；0.1.5 的独立卡片已随该线移除 | 仅 client 运行时（同源 `fetch` 到 `/_dsh/memory/settings`；无 eval / localStorage / 跨域请求） |
@@ -55,7 +55,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 ```
 
 - 写入全是 **tmp + rename 原子写**；journal 损坏行跳过（游标保持落后）；合并前**严格校验输出**（`# DSH memory`、独立 `vN`、至少一个 `##` 节），畸形拒绝并保留旧版；截断按完整行、不留下未闭合代码围栏。
-- rollout 块来源有三：轮次蒸馏、子代理最终答复摘录（`captureSubagents`）、compaction 摘要摘录（随 `autoSummarize`）。合并只消费「新 rollout 块 + 游标之后的 journal 事件」，游标在写入成功后推进；每会话摘要防抖 5min（窗口内轮次在到期后补偿蒸馏）、并发上限 4（竞争改为有界重试）、rollout 窗口 64 个文件（溢出进 `memory_stats.rolloutWindow`）、合并间隔 10min，另有启动后一次与每 10 分钟的空闲兜底合并（仅 `autoSummarize` 开、仅持锁实例）；合并结果超 `summaryTargetBytes(maxBytes)` 时追加一次 `prune` pass 缩容（输出须复验、失败保留合并结果，硬截断仅兜底）。
+- rollout 块来源有三：轮次蒸馏、子代理最终答复摘录（`captureSubagents`）、compaction 摘要摘录（随 `autoSummarize`）。合并只消费「新 rollout 块 + 游标之后的 journal 事件」，游标在写入成功后推进；每会话摘要防抖 5min（窗口内轮次在到期后补偿蒸馏）、并发上限 4（竞争改为有界重试）、rollout 窗口 64 个文件（溢出进 `memory_stats.rolloutWindow`）、合并间隔 10min，另有启动后一次与每 10 分钟的空闲兜底合并（仅 `autoSummarize` 开、仅持锁实例）；合并结果超 `summaryTargetBytes(maxBytes)` 时追加一次 `prune` pass 缩容，两个 prompt 都用 `summaryTargetChars(maxBytes)` 给出的**字符**预算（字节对 LLM 不可数），输出须复验、失败保留合并结果，硬截断仅兜底；prune 效果记入 `lastPrune`（beforeBytes/afterBytes/targetBytes/targetChars）。
 - 注入：`systemPrompt.context({name:'dsh-memory', order:2000, text})` 每次组装时同步重读，写入后下一步生效；读失败返回空串不阻塞会话；注入统计（字节数/是否被预算截断）经 `memory_stats` 与 `diagnostics.json` 可见。
 - 安全：注入前 `redactSecrets`（默认开）、rollout/摘要等三条写盘路径经 `redactForStorage` 脱敏（历史文件不回写）、`memory_add` 默认拒绝明显凭据（`allowSecret:true` 放行）、`readOnlyScopes` 阻断写工具。
 
@@ -70,9 +70,9 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 
 ## 6. 测试体系
 
-- `npm test` = **99 项**（node:test，约 0.8s）：`store`（存储语义/journal/历史/归档/作用域/`redactForStorage`）、`automation`（技能定义/路由回退链/事件文本提取/工具活动摘要/`describe()` 读取/`budgetState`/`rolloutWindowState`/`nextRetryDelay`/`summaryTargetBytes`）、`browser`（HTML 快照）、`volatile`（volatile 标记、盒识别与解盒、配置读回）、`web-settings`（端点生命周期 + 最小补丁保存 + 密钥脱敏 + 加载行命名空间 + 表单注册）、`embedding.integration`（fake `/embeddings` + 本地向量）、`mcp.integration`（真实子进程往返）、`host-wiring`（见下）。
+- `npm test` = **100 项**（node:test，约 0.9s）：`store`（存储语义/journal/历史/归档/作用域/`redactForStorage`）、`automation`（技能定义/路由回退链/事件文本提取/工具活动摘要/`describe()` 读取/`budgetState`/`rolloutWindowState`/`nextRetryDelay`/`summaryTargetBytes`/`summaryTargetChars`）、`browser`（HTML 快照）、`volatile`（volatile 标记、盒识别与解盒、配置读回）、`web-settings`（端点生命周期 + 最小补丁保存 + 密钥脱敏 + 加载行命名空间 + 表单注册）、`embedding.integration`（fake `/embeddings` + 本地向量）、`mcp.integration`（真实子进程往返）、`host-wiring`（见下）。
 - **零依赖原则**：CI（`.github/workflows/ci.yml`，node 20/22，push main + PR）**不 install**，直接 `npm run check && npm test`。任何测试新增对第三方包的硬依赖都会让 CI 崩。
-- `test/host-wiring.test.js`：①源码守卫——注释剥离后无 `settings.register(`、`settings.mutate(` 存在且无 `settings.replace(`、`settingsNamespace` 不存在、`snapshotEvents` 作为兜底存在且 `session.events.entries()` 不存在、`observeSession` + `inject(['sessionQuery'])` 存在且注释剥离后无 `deriveMessages(`、`inject(['llm'])` 存在且无启动时 `const llm = ctx.get('llm')`、`consolidateTokenFloor(` 与 `configAlerts` 存在、volatile 标记与 `loader/volatile-update` 存在、`lib/client.js` 无整段 `value: draft`、14 工具名齐全、`agent/turn-stopping`/`systemPrompt.context`/`AUTO_MEMORY_SKILL` 存在、三条写盘路径经 `redactForStorage`、`nextRetryDelay(` 与 dispose 清理定时器、`memory_stats` 含注入字节/预算水位/rollout 窗口字段、超目标时的 prune pass（`kind: 'prune'`、`summaryTargetBytes` 触发、输出经 `validateMergedSummary` 复验、`lastConsolidationPrunedAt` 输出）；②fake-ctx `apply()` 冒烟**一条**——0.1.7+ 形态（无 `register()`，盒装 config 需解盒并在 volatile 提交后重读），均断言 14 工具注册、技能、注入钩子、settings 路由，并执行 `memory_stats` 断言低于底线的 `consolidateMaxTokens` 被提升（3000 → 4096）且 `configAlerts` 非空。**当 harness 包不可解析时必须 `t.skip()` 而非报错**（CI 情形），且**不能改变 `# tests` 计数**（check-release 依赖该计数）。
+- `test/host-wiring.test.js`：①源码守卫——注释剥离后无 `settings.register(`、`settings.mutate(` 存在且无 `settings.replace(`、`settingsNamespace` 不存在、`snapshotEvents` 作为兜底存在且 `session.events.entries()` 不存在、`observeSession` + `inject(['sessionQuery'])` 存在且注释剥离后无 `deriveMessages(`、`inject(['llm'])` 存在且无启动时 `const llm = ctx.get('llm')`、`consolidateTokenFloor(` 与 `configAlerts` 存在、volatile 标记与 `loader/volatile-update` 存在、`lib/client.js` 无整段 `value: draft`、14 工具名齐全、`agent/turn-stopping`/`systemPrompt.context`/`AUTO_MEMORY_SKILL` 存在、三条写盘路径经 `redactForStorage`、`nextRetryDelay(` 与 dispose 清理定时器、`memory_stats` 含注入字节/预算水位/rollout 窗口字段、超目标时的 prune pass（`kind: 'prune'`、`summaryTargetBytes` 触发、`summaryTargetChars` 字符预算出现在两个 prompt、输出经 `validateMergedSummary` 复验、`lastConsolidationPrunedAt` 与 `lastPrune` 输出）；②fake-ctx `apply()` 冒烟**一条**——0.1.7+ 形态（无 `register()`，盒装 config 需解盒并在 volatile 提交后重读），均断言 14 工具注册、技能、注入钩子、settings 路由，并执行 `memory_stats` 断言低于底线的 `consolidateMaxTokens` 被提升（3000 → 4096）且 `configAlerts` 非空。**当 harness 包不可解析时必须 `t.skip()` 而非报错**（CI 情形），且**不能改变 `# tests` 计数**（check-release 依赖该计数）。
 - `npm run check`（`scripts/check-release.mjs`）契约：`package.json.version` == CHANGELOG 最新 `## <ver>` == README 两语版本行（`Current release: **X**` / `当前版本：**X**`）；README 声明的测试数（`runs N tests` / `运行 N 项测试`）== 实际 `node --test` 的 `# tests N`。**这些措辞是解析契约，改动措辞必须同步改脚本。**
 
 ## 7. 发布流程（0.2.8 起的标准动作）
@@ -84,7 +84,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 5. `git commit`（信息含 release: vX.Y.Z 摘要）→ `git tag -a v<ver> -m <摘要>` → `git push origin main` + 推送标签。
 - 版本号/测试数/工具数任何一处与 README 不一致，`npm run check` 会红——这是特性，不是烦恼。
 - **改 schema 默认值时必须评估 user 层覆盖**：user 层优先级最高，旧版本固化过的旧默认值会继续覆盖新默认，使这次「修复」对已装实例完全无效（0.2.11 的 8192 就是这样被 user 层的 3000 压住的）。改默认值必须配套：运行时底线或迁移、CHANGELOG 写明升级影响与手工清理方式、README 的 Upgrade notes / 升级须知同步。
-- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11 / v0.2.12 / v0.2.13 / v0.2.14 / v0.2.15 / v0.2.16 / v0.3.0 / v0.3.1 / v0.3.2 / v0.4.0 / v0.5.0 / v0.5.1 / v0.5.2 / v0.5.3（更早版本未补标签）。
+- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11 / v0.2.12 / v0.2.13 / v0.2.14 / v0.2.15 / v0.2.16 / v0.3.0 / v0.3.1 / v0.3.2 / v0.4.0 / v0.5.0 / v0.5.1 / v0.5.2 / v0.5.3 / v0.5.4（更早版本未补标签）。
 - **`npm run check` 必须在任意 reporter 下可解析**：Node 25 在 stdout 非 TTY 时默认 `spec`（`ℹ tests N`），脚本已固定 `--test-reporter=tap` 并保留 fallback 解析；改动该脚本时不要退回只认 TAP 的正则。
 
 ## 8. 部署（现状）
@@ -121,6 +121,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 | **防抖窗口直接丢轮次** | 5 分钟防抖命中时只记 `debounced` skip 并 return，没有补偿任务；会话若在窗口内结束且无后续轮次，该轮内容**永远不会**进记忆（2026-11-11 审计发现） | 窗口到期后定时补跑一次（若已被后续轮次覆盖则跳过）；`queue-full`/`already-running`/`no-lock` 改为 30s/60s/120s 有界重试，耗尽记 `retry-exhausted`；所有定时器在 dispose 清理（v0.5.2） |
 | **记忆写盘未脱敏** | `redactSecrets` 只作用于注入读取；rollout 摘要、compaction/子代理摘录与合并结果直接写盘，蒸馏捕获到的密钥会落进 `rollout_summaries/` 与 `memory_summary.md`（2026-11-11 审计发现） | 新增 `redactForStorage` 并在三条写盘路径应用（受 `redactSecrets` 开关控制）；历史文件不回写，用 `memory_review` + `memory_update` 清理（v0.5.2） |
 | **提示词控不住合并输出体积** | 0.5.2 在合并 prompt 里要求「输出 ≤ 预算 90%」，上线实测 v57/v58/v59 连续三次都顶到 16,000 B 被截断（`lastConsolidationTruncatedAt` 每次推进），尾部新事实有被切风险 | 超 `summaryTargetBytes(maxBytes)` 时追加一次有界 `prune` LLM 调用缩容，输出经 `validateMergedSummary` + 版本行校验并重新限定预算后才替换；新增 `lastConsolidationPrunedAt` 与 `lastConsolidationTruncatedAt` 语义拆分（v0.5.3） |
+| **字节目标对 LLM 不可数** | 0.5.3 的 prune prompt 仍给「≤ N 字节」，实测 v60 prune 后仍 15,833 B（99%），只缩小 36 B——模型数不了字节 | 两个 prompt 改用 `summaryTargetChars(maxBytes)`（字节目标 / 3，CJK 最坏情况，下限 512）并附当前字符数；不再为 90% 目标二次截断（保留 `maxBytes` 硬上限兜底）；新增 `lastPrune` 遥测使 prune 效果可见（v0.5.4） |
 | 常态 | DSH pre-1.0，同一 `^0.1.x` 范围内 API 可破 | 升级前验证；用 host-wiring 守卫兜底 |
 
 **维护提示**：本文件是与代码平行的文档，改版本/工具数/CI/部署方式时同步更新；若与仓库不一致，以 package.json / lib / README / CHANGELOG 为准（并修本文件）。
