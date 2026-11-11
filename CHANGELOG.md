@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.5 (2026-11-11)
+
+### Give the character budget a 5% margin so a merge lands in one pass
+
+0.5.4's character budget was an exact CJK worst-case bound (byte target / 3),
+which only holds for pure CJK text: the second live merge landed at 14,581 B
+against a 14,400 B target, so the prune pass ran again, shaved just 46 B and left
+the summary at 91% of the budget — two LLM calls on every merge.
+
+`summaryTargetChars` now applies a 5% margin (byte target / 3 * 0.95; a 16,000 B
+budget yields 4,560 characters instead of 4,800), so a merge that follows the
+character budget lands around 13.7 KB — under the 90% target — and the prune pass
+becomes an exception again instead of per-merge overhead. Nothing else changes:
+validation, re-bounding, the hard-cap fallback and the `lastPrune` telemetry are
+untouched.
+
+Tests: count unchanged (100); only the `summaryTargetChars` expectations move.
+
 ## 0.5.4 (2026-11-11)
 
 ### Ask the curator for characters, not bytes

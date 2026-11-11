@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话（连同该轮工具活动的有界摘要、以及各子代理最终答复的摘录）蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.5.4** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.5.5** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -84,6 +84,8 @@ dsh plugin --profile web add 'github:haitang1/dsh-memory#v0.5.2'
 Web 设置页表单（见下文）可在线编辑**全部配置项**；各键亦可通过 loader 配置或 `settings.yaml` 的 `memory:` 段覆盖。配置解析顺序为 schema 默认 → 组合 `base` → **user 层**，user 层优先级最高，因此卡片只持久化**你改动过的字段**；把字段改回默认值时会删除其 user 层条目，而不是把默认值写死。详见[升级须知](#升级须知)。
 
 ## 升级须知
+
+**0.5.5 给字符预算加 5% 余量。** 0.5.4 的「字节目标 / 3」是无余量的 CJK 上界，混入英文后 merge 仍会略超字节目标（实测 14,581 B vs 14,400 B），导致每次合并都触发 prune。现在 `summaryTargetChars` 对默认 16 KB 预算给出约 4,560 字符（≈13.7 KB 中文），让 merge 稳定落在 90% 以下，prune 只作为例外兜底；校验、硬上限与遥测均不变。
 
 **0.5.4 让模型按「字符」而不是「字节」控制摘要长度。** 模型数不了字节，0.5.3 的字节目标仍让摘要停在预算 99%。现在两个提示词都给字符预算（`summaryTargetChars`：字节目标 / 3，按中文最坏情况换算）并附当前字符数；硬上限仍是 `maxBytes`，不会为了 90% 目标再截一次尾（避免切掉最新事实）。`memory_stats` 与 `diagnostics.json` 新增 `lastPrune { beforeBytes, afterBytes, targetBytes, targetChars }`，prune 效果可见。
 

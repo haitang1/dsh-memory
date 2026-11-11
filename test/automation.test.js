@@ -266,9 +266,10 @@ test('summaryTargetBytes keeps the merge under the high-water mark', () => {
 })
 
 test('summaryTargetChars converts the byte target with the CJK worst case', () => {
-  assert.equal(summaryTargetChars(16_000), 4800)
-  assert.equal(summaryTargetChars(24_000), 7200)
-  // The 1 KiB floor divided by 3 still leaves a usable character budget.
+  // 16,000 B budget -> 14,400 B target -> 4,560 chars (5% margin over 4,800).
+  assert.equal(summaryTargetChars(16_000), 4560)
+  assert.equal(summaryTargetChars(24_000), 6840)
+  // The 1 KiB floor still leaves a usable character budget.
   assert.equal(summaryTargetChars(512), 512)
   assert.equal(summaryTargetChars(Number.NaN), 512)
 })

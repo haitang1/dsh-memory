@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **Auto memory** — on each finished turn of a root agent, the new conversation text (plus a bounded digest of the tools it ran, and of any subagent’s final answer) is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.5.4** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.5.5** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
@@ -84,6 +84,8 @@ Pinning a commit is recommended (`f3c8de4` is the `v0.2.7` release commit); omit
 The Web settings form (see below) edits every config field live; keys are likewise overridable through the loader row or the `memory:` section of `settings.yaml`. Settings resolve as schema defaults → composition `base` → **user layer**, and the user layer wins, so the form persists **only the fields you changed** and a field saved back at its default drops its user-layer entry instead of pinning the default. See [Upgrade notes](#upgrade-notes).
 
 ## Upgrade notes
+
+**0.5.5 gives the character budget a 5% margin.** 0.5.4's exact CJK bound still let a merge land slightly over the byte target (14,581 B vs 14,400 B), so the prune pass ran on every merge. `summaryTargetChars` now targets ~4,560 characters for the default 16 KB budget (≈13.7 KB of CJK), keeping merges under the 90% mark and the prune pass for the exceptions. Validation, the hard cap and the telemetry are unchanged.
 
 **0.5.4 asks the curator for characters, not bytes.** Models cannot measure bytes, so 0.5.3's byte-targeted prompts still left the summary at 99% of the budget. Both prompts now carry a character budget (`summaryTargetChars`: byte target / 3, the CJK worst case) and the current character count; the hard cap at `maxBytes` remains the only truncation (the 90% target is never enforced by cutting the tail). `memory_stats` and `diagnostics.json` now report `lastPrune { beforeBytes, afterBytes, targetBytes, targetChars }`.
 
