@@ -12,6 +12,7 @@ import {
   contentFingerprint,
   detectSecrets,
   redactSecrets,
+  redactForStorage,
   finishError,
   hashText,
   byteLength,
@@ -447,6 +448,15 @@ test('redactSecrets replaces findings with typed markers', () => {
   const output = redactSecrets(input)
   assert.equal(output.includes('sk-abcdefghijklmnopqrstuvwxyz123456'), false)
   assert.equal(output.includes('[REDACTED:openai-key]'), true)
+})
+
+test('redactForStorage scrubs secrets before persisting and can be disabled', () => {
+  const input = 'deploy with sk-abcdefghijklmnopqrstuvwxyz123456 today'
+  const scrubbed = redactForStorage(input)
+  assert.equal(scrubbed.includes('sk-abcdefghijklmnopqrstuvwxyz123456'), false)
+  assert.equal(scrubbed.includes('[REDACTED:openai-key]'), true)
+  assert.equal(redactForStorage(input, false), input)
+  assert.equal(redactForStorage('plain durable fact'), 'plain durable fact')
 })
 test('localEmbedding and cosineSimilarity rank similar text higher', () => {
   const base = localEmbedding('restart project service')

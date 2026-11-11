@@ -5,17 +5,17 @@
 ## 1. 项目概览
 
 - **定位**：DeepSeek Harness（DSH）的类 Codex 持久记忆插件——全局摘要注入每次提示词、14 个 `memory_*` 工具读写、每轮自动蒸馏、定期合并、版本化回滚；另附独立 stdio MCP server 与 Web 设置表单（插件页行配置）。
-- **当前版本**：0.5.1（MIT，ESM，`engines: node >= 20.3`）。
+- **当前版本**：0.5.2（MIT，ESM，`engines: node >= 20.3`）。
 - **零运行时第三方依赖**：`dependencies` 为空，只有 `peerDependencies`（见红线 3）。仓库无 lockfile、无构建步骤、无 lint/typecheck——保持可读可跑，防漂移靠 `npm run check`。
 
 ## 2. 架构与模块地图
 
 | 模块 | 职责 | 依赖边界 |
 | --- | --- | --- |
-| `lib/store.js` | 存储原语：raw/journal/summary 解析、序列化、BM25+bigram 搜索、本地 256 维哈希向量、远程 `/embeddings` 合并、凭据检测、`MemoryStore`（锁/原子写/作用域/归档/backfill） | **零 harness 依赖**（node builtins only） |
+| `lib/store.js` | 存储原语：raw/journal/summary 解析、序列化、BM25+bigram 搜索、本地 256 维哈希向量、远程 `/embeddings` 合并、凭据检测、`MemoryStore`（锁/原子写/作用域/归档/backfill）、`redactForStorage`（写盘前脱敏，与注入期脱敏分离） | **零 harness 依赖**（node builtins only） |
 | `lib/web.js` | 同源设置端点 `/_dsh/memory/settings`（GET/POST、同源校验、409 冲突、CSP） | 零 harness 依赖 |
 | `lib/browser.js` | 自包含单文件 HTML 记忆浏览器 | 零 harness 依赖 |
-| `lib/automation.js` | `AUTO_MEMORY_SKILL` 定义、`resolveSummarizeRoute` 路由回退链、`extractMessageText`（user/assistant 事件结构差异）、`formatToolCall`/`formatToolResult`（`tool/call`、`tool/result` 的有界单行摘要）、`formatSubagentResult`（子代理最终答复的有界摘录）、`formatCompactionSummary`（compaction 摘要的有界摘录）、`estimateTokens`/`truncateToTokens`（无依赖的 token 估算与按 token 截断）、`readSettingsNamespace`（0.1.7 无 `get()` 时经 `describe()` 读取） | 零 harness 依赖 |
+| `lib/automation.js` | `AUTO_MEMORY_SKILL` 定义、`resolveSummarizeRoute` 路由回退链、`extractMessageText`（user/assistant 事件结构差异）、`formatToolCall`/`formatToolResult`（`tool/call`、`tool/result` 的有界单行摘要）、`formatSubagentResult`（子代理最终答复的有界摘录）、`formatCompactionSummary`（compaction 摘要的有界摘录）、`estimateTokens`/`truncateToTokens`（无依赖的 token 估算与按 token 截断）、`readSettingsNamespace`（0.1.7 无 `get()` 时经 `describe()` 读取）、`budgetState`/`rolloutWindowState`/`nextRetryDelay`（注入预算水位、rollout 窗口溢出、蒸馏重试退避的纯函数） | 零 harness 依赖 |
 | `lib/volatile.js` | DSH 0.1.7 的 volatile 接缝：`volatileField`（仅在 schema 支持时标记字段）、`secretField`（仅在 schema 支持 `role` 时把字段标为 secret，供宿主脱敏）、`isVolatileValue`/`unboxConfigValue`/`plainConfig`（把 cosmokit Volatile 盒读回普通值） | 零 harness 依赖 |
 | `lib/index.js` | 唯一宿主接线层：`apply()`（settings/tools/skills 注入、systemPrompt.context、turn-stopping、父代理作用域内的 subagent/end 捕获、session/event 的 compaction/summary 捕获）、`toolDefinitions()`（14 工具）、蒸馏/合并管线；`Config` 由 volatile 标记字段构建，配置一律经 `plainConfig` 解盒后使用 | **唯一允许 import `@deepseek-ai/*`**（dsh-llm / dsh-tools / schemastery） |
 | `lib/client.js` | Web 客户端 bundle：`plugins.row.config` 表单（keyed `<bundle>#<rowId>`，经 `configForms.whileServed`），en/zh 双语 24 字段；0.1.5 的独立卡片已随该线移除 | 仅 client 运行时（同源 `fetch` 到 `/_dsh/memory/settings`；无 eval / localStorage / 跨域请求） |
@@ -55,9 +55,9 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 ```
 
 - 写入全是 **tmp + rename 原子写**；journal 损坏行跳过（游标保持落后）；合并前**严格校验输出**（`# DSH memory`、独立 `vN`、至少一个 `##` 节），畸形拒绝并保留旧版；截断按完整行、不留下未闭合代码围栏。
-- rollout 块来源有三：轮次蒸馏、子代理最终答复摘录（`captureSubagents`）、compaction 摘要摘录（随 `autoSummarize`）。合并只消费「新 rollout 块 + 游标之后的 journal 事件」，游标在写入成功后推进；每会话摘要防抖 5min、并发上限 4、rollout 文件上限 16、合并间隔 10min。
-- 注入：`systemPrompt.context({name:'dsh-memory', order:2000, text})` 每次组装时同步重读，写入后下一步生效；读失败返回空串不阻塞会话。
-- 安全：注入前 `redactSecrets`（默认开）、`memory_add` 默认拒绝明显凭据（`allowSecret:true` 放行）、`readOnlyScopes` 阻断写工具。
+- rollout 块来源有三：轮次蒸馏、子代理最终答复摘录（`captureSubagents`）、compaction 摘要摘录（随 `autoSummarize`）。合并只消费「新 rollout 块 + 游标之后的 journal 事件」，游标在写入成功后推进；每会话摘要防抖 5min（窗口内轮次在到期后补偿蒸馏）、并发上限 4（竞争改为有界重试）、rollout 窗口 64 个文件（溢出进 `memory_stats.rolloutWindow`）、合并间隔 10min，另有启动后一次与每 10 分钟的空闲兜底合并（仅 `autoSummarize` 开、仅持锁实例）。
+- 注入：`systemPrompt.context({name:'dsh-memory', order:2000, text})` 每次组装时同步重读，写入后下一步生效；读失败返回空串不阻塞会话；注入统计（字节数/是否被预算截断）经 `memory_stats` 与 `diagnostics.json` 可见。
+- 安全：注入前 `redactSecrets`（默认开）、rollout/摘要等三条写盘路径经 `redactForStorage` 脱敏（历史文件不回写）、`memory_add` 默认拒绝明显凭据（`allowSecret:true` 放行）、`readOnlyScopes` 阻断写工具。
 
 ## 5. 工具与技能
 
@@ -70,9 +70,9 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 
 ## 6. 测试体系
 
-- `npm test` = **93 项**（node:test，约 0.6s）：`store`（存储语义/journal/历史/归档/作用域）、`automation`（技能定义/路由回退链/事件文本提取/工具活动摘要/`describe()` 读取）、`browser`（HTML 快照）、`volatile`（volatile 标记、盒识别与解盒、配置读回）、`web-settings`（端点生命周期 + 最小补丁保存 + 密钥脱敏 + 加载行命名空间 + 表单注册）、`embedding.integration`（fake `/embeddings` + 本地向量）、`mcp.integration`（真实子进程往返）、`host-wiring`（见下）。
+- `npm test` = **98 项**（node:test，约 0.8s）：`store`（存储语义/journal/历史/归档/作用域/`redactForStorage`）、`automation`（技能定义/路由回退链/事件文本提取/工具活动摘要/`describe()` 读取/`budgetState`/`rolloutWindowState`/`nextRetryDelay`）、`browser`（HTML 快照）、`volatile`（volatile 标记、盒识别与解盒、配置读回）、`web-settings`（端点生命周期 + 最小补丁保存 + 密钥脱敏 + 加载行命名空间 + 表单注册）、`embedding.integration`（fake `/embeddings` + 本地向量）、`mcp.integration`（真实子进程往返）、`host-wiring`（见下）。
 - **零依赖原则**：CI（`.github/workflows/ci.yml`，node 20/22，push main + PR）**不 install**，直接 `npm run check && npm test`。任何测试新增对第三方包的硬依赖都会让 CI 崩。
-- `test/host-wiring.test.js`：①源码守卫——注释剥离后无 `settings.register(`、`settings.mutate(` 存在且无 `settings.replace(`、`settingsNamespace` 不存在、`snapshotEvents` 作为兜底存在且 `session.events.entries()` 不存在、`observeSession` + `inject(['sessionQuery'])` 存在且注释剥离后无 `deriveMessages(`、`inject(['llm'])` 存在且无启动时 `const llm = ctx.get('llm')`、`consolidateTokenFloor(` 与 `configAlerts` 存在、volatile 标记与 `loader/volatile-update` 存在、`lib/client.js` 无整段 `value: draft`、14 工具名齐全、`agent/turn-stopping`/`systemPrompt.context`/`AUTO_MEMORY_SKILL` 存在；②fake-ctx `apply()` 冒烟**一条**——0.1.7+ 形态（无 `register()`，盒装 config 需解盒并在 volatile 提交后重读），均断言 14 工具注册、技能、注入钩子、settings 路由，并执行 `memory_stats` 断言低于底线的 `consolidateMaxTokens` 被提升（3000 → 4096）且 `configAlerts` 非空。**当 harness 包不可解析时必须 `t.skip()` 而非报错**（CI 情形），且**不能改变 `# tests` 计数**（check-release 依赖该计数）。
+- `test/host-wiring.test.js`：①源码守卫——注释剥离后无 `settings.register(`、`settings.mutate(` 存在且无 `settings.replace(`、`settingsNamespace` 不存在、`snapshotEvents` 作为兜底存在且 `session.events.entries()` 不存在、`observeSession` + `inject(['sessionQuery'])` 存在且注释剥离后无 `deriveMessages(`、`inject(['llm'])` 存在且无启动时 `const llm = ctx.get('llm')`、`consolidateTokenFloor(` 与 `configAlerts` 存在、volatile 标记与 `loader/volatile-update` 存在、`lib/client.js` 无整段 `value: draft`、14 工具名齐全、`agent/turn-stopping`/`systemPrompt.context`/`AUTO_MEMORY_SKILL` 存在、三条写盘路径经 `redactForStorage`、`nextRetryDelay(` 与 dispose 清理定时器、`memory_stats` 含注入字节/预算水位/rollout 窗口字段；②fake-ctx `apply()` 冒烟**一条**——0.1.7+ 形态（无 `register()`，盒装 config 需解盒并在 volatile 提交后重读），均断言 14 工具注册、技能、注入钩子、settings 路由，并执行 `memory_stats` 断言低于底线的 `consolidateMaxTokens` 被提升（3000 → 4096）且 `configAlerts` 非空。**当 harness 包不可解析时必须 `t.skip()` 而非报错**（CI 情形），且**不能改变 `# tests` 计数**（check-release 依赖该计数）。
 - `npm run check`（`scripts/check-release.mjs`）契约：`package.json.version` == CHANGELOG 最新 `## <ver>` == README 两语版本行（`Current release: **X**` / `当前版本：**X**`）；README 声明的测试数（`runs N tests` / `运行 N 项测试`）== 实际 `node --test` 的 `# tests N`。**这些措辞是解析契约，改动措辞必须同步改脚本。**
 
 ## 7. 发布流程（0.2.8 起的标准动作）
@@ -84,15 +84,16 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 5. `git commit`（信息含 release: vX.Y.Z 摘要）→ `git tag -a v<ver> -m <摘要>` → `git push origin main` + 推送标签。
 - 版本号/测试数/工具数任何一处与 README 不一致，`npm run check` 会红——这是特性，不是烦恼。
 - **改 schema 默认值时必须评估 user 层覆盖**：user 层优先级最高，旧版本固化过的旧默认值会继续覆盖新默认，使这次「修复」对已装实例完全无效（0.2.11 的 8192 就是这样被 user 层的 3000 压住的）。改默认值必须配套：运行时底线或迁移、CHANGELOG 写明升级影响与手工清理方式、README 的 Upgrade notes / 升级须知同步。
-- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11 / v0.2.12 / v0.2.13 / v0.2.14 / v0.2.15 / v0.2.16 / v0.3.0 / v0.3.1 / v0.3.2 / v0.4.0 / v0.5.0 / v0.5.1（更早版本未补标签）。
+- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11 / v0.2.12 / v0.2.13 / v0.2.14 / v0.2.15 / v0.2.16 / v0.3.0 / v0.3.1 / v0.3.2 / v0.4.0 / v0.5.0 / v0.5.1 / v0.5.2（更早版本未补标签）。
 - **`npm run check` 必须在任意 reporter 下可解析**：Node 25 在 stdout 非 TTY 时默认 `spec`（`ℹ tests N`），脚本已固定 `--test-reporter=tap` 并保留 fallback 解析；改动该脚本时不要退回只认 TAP 的正则。
 
 ## 8. 部署（现状）
 
-- 线上 profile：`~/.dsh/profiles/web/`；`package.json` 中 `dependencies["@dsh-external/dsh-memory"] = "github:haitang1/dsh-memory#<commit-sha>"`，`dsh.profile.bundles` 含 `@dsh-external/dsh-memory`；安装副本为**无 .git 的纯文件拷贝**（`node_modules/@dsh-external/dsh-memory/`）。
+- 本机（2026-11-11）：Windows + DSH desktop 0.2.2-rc.1，profile 为 `~/.dsh/profiles/desktop/`；安装副本 = `node_modules/@dsh-external/dsh-memory/`，pin 在 profile `package.json`，用 `scripts/sync-install.ps1 -Backup` 同步文件、用 `dsh plugin --profile desktop add "github:haitang1/dsh-memory#<sha>"` 更新 pin（pin 指向的 commit 必须已 push 到 GitHub）。下文 Linux web profile 的记录为历史部署环境。
+- 线上 profile（历史）：`~/.dsh/profiles/web/`；`package.json` 中 `dependencies["@dsh-external/dsh-memory"] = "github:haitang1/dsh-memory#<commit-sha>"`，`dsh.profile.bundles` 含 `@dsh-external/dsh-memory`；安装副本为**无 .git 的纯文件拷贝**（`node_modules/@dsh-external/dsh-memory/`）。
 - 升级 = ①用仓库发布文件覆盖安装副本（`lib bin examples scripts cordis.patch.yml CHANGELOG.md README*.md LICENSE package.json`）②更新 profile pin 到新 sha ③重启。
 - **重启必须用 supervised setsid 模式**：监督进程 cmdline **不得包含 pkill 模式串**（否则自杀），写独立脚本文件再由 setsid 分离执行；参考模板 `/tmp/dshweb-restart-v028.sh`（trace `/tmp/dshweb-restart-v028.trace`）。健康检查注意：`curl /` 会被 token 守卫拦出非 2xx，属误报，以**端口监听 + 服务横幅**为准。
-- **验证依据**：`$DSH_HOME/memories/diagnostics.json` 重启后更新，且 `toolsRegistered` 列出 14 工具、`skillRegistered: true`、无 `skillError`；或 `dsh pluginInventory` 显示 enable。本机（2026-09-30 实测）运行副本为 **DSH 0.2.0-rc.2**（全局安装 `/opt/node/lib/node_modules/@deepseek-ai/dsh`，`dsh --version` = 0.2.0-rc.2；web 进程 = `node /opt/node/bin/dsh web --port 3080`，同机 `/usr/local/bin/dsh` 亦为 0.2.0-rc.2）。设置接缝走 0.1.7+/0.2.x 的 `loader/volatile-update` 分支（0.1.5 已放弃，见红线 9）。
+- **验证依据**：`$DSH_HOME/memories/diagnostics.json` 重启后更新，且 `toolsRegistered` 列出 14 工具、`skillRegistered: true`、无 `skillError`；或 `dsh pluginInventory` 显示 enable。本机（2026-09-30 实测，历史记录）运行副本为 **DSH 0.2.0-rc.2**（全局安装 `/opt/node/lib/node_modules/@deepseek-ai/dsh`，`dsh --version` = 0.2.0-rc.2；web 进程 = `node /opt/node/bin/dsh web --port 3080`，同机 `/usr/local/bin/dsh` 亦为 0.2.0-rc.2）；2026-11-11 本机为 Windows desktop profile + DSH 0.2.2-rc.1。设置接缝走 0.1.7+/0.2.x 的 `loader/volatile-update` 分支（0.1.5 已放弃，见红线 9）。
 - **本机网络坑**：到 github.com 的 git 传输走 HTTP/2 会连续超时（`git ls-remote`/`git fetch` 卡死）；加 `-c http.version=HTTP/1.1` 即可（仓库已写入 `git config http.version HTTP/1.1`）。`api.github.com`/`codeload.github.com` 正常，git 协议不可用时可 `gh api repos/haitang1/dsh-memory/tarball/<ref>` 兜底取源码。
 - 独立 MCP：`DSH_MEMORY_DIR` + `DSH_MEMORY_REDACT=1`（默认），`bin/dsh-memory-mcp.mjs` 9 工具；AGENTS.md 种子来自 `$DSH_HOME/AGENTS.md`（`seedFromAgentsMd`，默认开；`memory_sync` 冲突检测）。
 
@@ -117,6 +118,8 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 | **子代理产出不入记忆** | 蒸馏只由 `agent/turn-stopping` 驱动且仅对根会话生效，子代理（研究/探索/验证的产出）此前 100% 被跳过；`subagent/end` 的载荷又没有父会话身份，只有「以委派父代理为 key 的 scope carrier」 | 把 `subagent/end` 监听器注册到**父代理自己的 `agent.ctx`**（`agent/created` + turn-stopping 补挂），用纯函数 `formatSubagentResult` 把最终答复作为 rollout 块追加（≤2000 字符、去重、无额外 LLM 调用），新增 `captureSubagents`（v0.3.0） |
 | **蒸馏只读消息事件** | `extractTurnText` 只读 `user/message` / `assistant/message` 的 text block，而工具调用与结果是**独立事件**（`tool/call` / `tool/result`）——于是「跑了什么命令、哪个测试失败、怎么修的」全部进不了记忆，摘要里只剩寒暄式散文 | 新增 `formatToolCall`/`formatToolResult` 纯函数生成有界单行摘要，`extractTurnText` 以独立预算（≤4000 字符）追加在 `[tool activity]` 标记后，截断正文不影响它（v0.2.16） |
 | **systemPrompt 注入静默丢失** | 插件在宿主进程内被重新 apply 时，`ctx.get('systemPrompt')` 可能为空——注入钩子被静默跳过，工具/设置端点/蒸馏全部正常，只有 `# DSH memory` 从提示词里消失，且无任何错误日志（与 0.1.2-rc.1 的 `ctx.get('llm')` 同型；2026-11-10 适配审计确认该风险模式） | 改为 `ctx.inject(['systemPrompt'], …)`（DSH 0.2.2-rc.1 一方插件 `dsh-user-approval` 即此写法）；`text()` 的 catch 首次失败记 warn；host-wiring 守卫禁止 `ctx.get('systemPrompt')` 并要求 `inject(['systemPrompt'])`（v0.5.1，2026-11-10） |
+| **防抖窗口直接丢轮次** | 5 分钟防抖命中时只记 `debounced` skip 并 return，没有补偿任务；会话若在窗口内结束且无后续轮次，该轮内容**永远不会**进记忆（2026-11-11 审计发现） | 窗口到期后定时补跑一次（若已被后续轮次覆盖则跳过）；`queue-full`/`already-running`/`no-lock` 改为 30s/60s/120s 有界重试，耗尽记 `retry-exhausted`；所有定时器在 dispose 清理（v0.5.2） |
+| **记忆写盘未脱敏** | `redactSecrets` 只作用于注入读取；rollout 摘要、compaction/子代理摘录与合并结果直接写盘，蒸馏捕获到的密钥会落进 `rollout_summaries/` 与 `memory_summary.md`（2026-11-11 审计发现） | 新增 `redactForStorage` 并在三条写盘路径应用（受 `redactSecrets` 开关控制）；历史文件不回写，用 `memory_review` + `memory_update` 清理（v0.5.2） |
 | 常态 | DSH pre-1.0，同一 `^0.1.x` 范围内 API 可破 | 升级前验证；用 host-wiring 守卫兜底 |
 
 **维护提示**：本文件是与代码平行的文档，改版本/工具数/CI/部署方式时同步更新；若与仓库不一致，以 package.json / lib / README / CHANGELOG 为准（并修本文件）。

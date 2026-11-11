@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.5.2 (2026-11-11)
+
+### Keep the memory pipeline caught up: budget visibility, retries, idle consolidation, redacted writes
+
+Four reliability gaps found in the 2026-11-11 audit:
+
+- **Injection budget visibility.** `memory_stats` now reports the injected byte
+  count, the summary's budget ratio/high-water flag, the last consolidation that
+  had to be byte-truncated (`lastConsolidationTruncatedAt`, mirrored into
+  `diagnostics.json`) and the rollout window state. The curator is asked to stay
+  at or below 90% of the injection budget, and a truncated merge is logged
+  instead of silently cutting the summary tail.
+- **The debounce no longer drops the last turn.** A turn arriving inside the
+  five-minute debounce window is distilled when the window closes (unless a later
+  turn already covered it) instead of being skipped forever when the session
+  ends. Races (`queue-full` / `already-running` / `no-lock`) retry with
+  30s/60s/120s backoff and report `retry-exhausted` after the last attempt
+  instead of dropping the turn on the floor.
+- **Idle and startup consolidation.** After startup, and then every ten minutes
+  while a backlog is pending, consolidation runs without waiting for a user turn
+  (off when `autoSummarize` is disabled, skipped on read-only instances). The
+  consolidation rollout window widened from 16 to 64 files, and an overflow is
+  reported through `memory_stats.rolloutWindow` and `diagnostics.json` instead
+  of leaving old sessions unread without a trace.
+- **Redaction before persisting.** Turn summaries, compaction/subagent excerpts
+  and the merged summary are redacted on write (`redactForStorage`), not only at
+  injection time, so secrets captured during distillation no longer accumulate in
+  `rollout_summaries/` or `memory_summary.md`. Files written by older releases
+  are not rewritten; `memory_review` + `memory_update` is the manual cleanup.
+
+Tests: 93 → 98 (new pure helpers plus source guards for the three write paths,
+deferred-timer disposal and the observability fields).
+
 ## 0.5.1 (2026-11-10)
 
 ### Keep the memory injection installed when the host re-applies the plugin

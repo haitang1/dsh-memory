@@ -4,13 +4,16 @@ import { readFile } from 'node:fs/promises'
 import {
   AUTO_MEMORY_SKILL,
   COMPACTION_EXCERPT_CHARS,
+  budgetState,
   estimateTokens,
   extractMessageText,
   formatCompactionSummary,
   formatSubagentResult,
   formatToolCall,
   formatToolResult,
+  nextRetryDelay,
   resolveSummarizeRoute,
+  rolloutWindowState,
   COMPACTION_EXCERPT_MIN_CHARS,
   SUBAGENT_EXCERPT_CHARS,
   SUBAGENT_EXCERPT_MIN_CHARS,
@@ -227,4 +230,27 @@ test('server entry retains the runtime definitions required by apply', async () 
   assert.match(source, /event\.type === 'tool\/call'/, 'tool/call events must be digested')
   assert.match(source, /event\.type === 'tool\/result'/, 'tool/result events must be digested')
   assert.match(source, /\[tool activity\]/, 'the digest must be marked in the distill input')
+})
+
+test('nextRetryDelay widens the delay and then gives up', () => {
+  assert.equal(nextRetryDelay(1), 30_000)
+  assert.equal(nextRetryDelay(2), 60_000)
+  assert.equal(nextRetryDelay(3), 120_000)
+  assert.equal(nextRetryDelay(4), null)
+  assert.equal(nextRetryDelay(0), null)
+})
+
+test('budgetState flags the high-water mark and an over-budget summary', () => {
+  const atWater = budgetState(14_400, 16_000)
+  assert.equal(atWater.ratio, 0.9)
+  assert.equal(atWater.highWater, true)
+  assert.equal(atWater.overBudget, false)
+  assert.equal(budgetState(17_000, 16_000).overBudget, true)
+  assert.equal(budgetState(1_000, 16_000).highWater, false)
+})
+
+test('rolloutWindowState reports files beyond the consolidation window', () => {
+  assert.deepEqual(rolloutWindowState(18, 64), { files: 18, limit: 64, overflow: false })
+  assert.deepEqual(rolloutWindowState(65, 64), { files: 65, limit: 64, overflow: true })
+  assert.deepEqual(rolloutWindowState(Number.NaN, 0), { files: 0, limit: 1, overflow: false })
 })

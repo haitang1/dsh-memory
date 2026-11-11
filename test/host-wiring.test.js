@@ -265,3 +265,30 @@ test('host wiring: apply() wires up on DSH 0.1.7, where settings.register() no l
 // asserts the host wiring actually registers everything. Imports the harness
 // packages (dsh-llm / dsh-tools) transitively, so it only runs where they are
 // resolvable; in zero-dependency CI it skips so the suite stays green.
+
+test('host wiring: persistence redacts, deferred work is disposable, and budget state is observable', async () => {
+  const source = await readFile(new URL('../lib/index.js', import.meta.url), 'utf8')
+  // Secrets must be scrubbed before persisting, not only before injection:
+  // rollout_summaries/ and memory_summary.md are written too.
+  assert.match(source, /redactForStorage\(summary, resolved\.redactSecrets\)/,
+    'turn summaries must be redacted before they are appended to the rollout file')
+  assert.match(source, /redactForStorage\(body, resolved\.redactSecrets\)/,
+    'compaction/subagent excerpts must be redacted before they are appended')
+  assert.match(source, /redactForStorage\(bounded, resolved\.redactSecrets\)/,
+    'the merged memory summary must be redacted before it is written')
+  // Deferred work (debounce compensation, race retries, idle consolidation)
+  // must be bounded and must not outlive the plugin.
+  assert.match(source, /nextRetryDelay\(/, 'deferred summarization must use the bounded retry policy')
+  assert.match(source, /if \(idleTimer !== null\) clearInterval\(idleTimer\)/,
+    'the idle consolidation timer must be cleared on dispose')
+  assert.match(source, /for \(const entry of pendingTimers\.values\(\)\) clearTimeout\(entry\.timer\)/,
+    'pending deferred timers must be cleared on dispose')
+  // Budget health has to be visible: the plugin reports what it injected and
+  // whether the rollout window has overflowed.
+  assert.match(source, /injectedBytes: runtimeStats\.injectedBytes/,
+    'memory_stats must report the injected byte count')
+  assert.match(source, /summaryHighWater: budget\.highWater/,
+    'memory_stats must report the budget high-water flag')
+  assert.match(source, /rolloutWindow: window/,
+    'memory_stats must report the rollout window state')
+})

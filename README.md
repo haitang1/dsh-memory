@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **Auto memory** — on each finished turn of a root agent, the new conversation text (plus a bounded digest of the tools it ran, and of any subagent’s final answer) is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.5.1** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.5.2** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
@@ -50,7 +50,7 @@ The one-command path is `scripts/sync-install.ps1` (see [Deploy / update](#deplo
 Alternatively, from GitHub on any platform (Linux/macOS included), install through the DSH CLI — it mounts the bundle automatically, no manual `cordis.patch.yml` row needed:
 
 ```bash
-dsh plugin --profile web add 'github:haitang1/dsh-memory#f3c8de4'
+dsh plugin --profile web add 'github:haitang1/dsh-memory#v0.5.2'
 ```
 
 Pinning a commit is recommended (`f3c8de4` is the `v0.2.7` release commit); omitting the `#<sha>` suffix installs the default branch. Restart DeepSeek Harness afterwards.
@@ -84,6 +84,8 @@ Pinning a commit is recommended (`f3c8de4` is the `v0.2.7` release commit); omit
 The Web settings form (see below) edits every config field live; keys are likewise overridable through the loader row or the `memory:` section of `settings.yaml`. Settings resolve as schema defaults → composition `base` → **user layer**, and the user layer wins, so the form persists **only the fields you changed** and a field saved back at its default drops its user-layer entry instead of pinning the default. See [Upgrade notes](#upgrade-notes).
 
 ## Upgrade notes
+
+**0.5.2 makes the memory pipeline keep up with itself.** Three operational changes, no migration: a turn that arrives during the 5-minute summarization debounce is now distilled when the window closes instead of being dropped; summarization races (`queue-full` / `already-running` / `no-lock`) are retried with widening delays instead of dropped; and consolidation runs once at startup and then every 10 minutes when a backlog is pending, so memory no longer waits for the next user turn (both stay off when `autoSummarize` is disabled). `memory_stats` now reports the injected byte count, its budget ratio/high-water flag, the last truncated consolidation, and the rollout window state. Rollout summaries, compaction/subagent excerpts and the merged summary are **redacted before they are written to disk** (previously redaction happened only at injection time), so secrets no longer accumulate in `rollout_summaries/`; files written by older releases keep whatever they already contain — use `memory_review` + `memory_update` to clean them up.
 
 **0.5.1 keeps the memory injection installed across plugin reloads.** Nothing to do beyond installing the new files and restarting DSH: the injection now waits for the `systemPrompt` service through `ctx.inject` instead of a boot-time `ctx.get`, so a plugin re-applied into a running host (a settings-triggered loader reload, a disable/enable cycle) no longer drops `# DSH memory` silently. Memory data and settings are untouched.
 
@@ -203,16 +205,16 @@ Tools accept a `scope` argument (`global` | `workspace` | `project`); the projec
 
 ## Development & testing
 
-`npm test` runs 93 tests (node:test):
+`npm test` runs 98 tests (node:test):
 
-- `test/store.test.js` — store semantics, journal, history, archiving, scopes;
-- `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain (including the `describe()`-based read on DSH 0.1.7), `extractMessageText` (user/assistant event shapes), the bounded tool-activity digest (`formatToolCall`/`formatToolResult`), the subagent and compaction excerpt formatters, and the token estimator/bounder used by the injection budget;
+- `test/store.test.js` — store semantics, journal, history, archiving, scopes, and `redactForStorage` (secrets are scrubbed before persisting, and the switch can be turned off);
+- `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain (including the `describe()`-based read on DSH 0.1.7), `extractMessageText` (user/assistant event shapes), the bounded tool-activity digest (`formatToolCall`/`formatToolResult`), the subagent and compaction excerpt formatters, the token estimator/bounder used by the injection budget, and the pure helpers behind the new reliability paths (`budgetState`, `rolloutWindowState`, `nextRetryDelay`);
 - `test/browser.test.js` — the interactive HTML browser snapshot rendering;
 - `test/web-settings.test.js` — the settings endpoint lifecycle (GET/POST, 403/409, body limits, secret redaction), resolution of the loader-row namespace, and a VM-sandbox load of the client bundle asserting the `plugins.row.config` form registration and that the removed 0.1.5 card is gone;
 - `test/volatile.test.js` — the DSH 0.1.7 volatile seam: marking a schema field live-editable only where the schema library supports it, recognizing a cosmokit Volatile box by its globally registered write hook, and reading a whole resolved config back as plain values;
 - `test/embedding.integration.test.js` — fake `/embeddings` server + local hashed vectors;
 - `test/mcp.integration.test.js` — real MCP child-process round-trips;
-- `test/host-wiring.test.js` — guards the harness-facing surface of `lib/index.js`: bare-string settings namespace, the removed `settingsNamespace` helper absent, the Surface layer (`snapshotEvents`) instead of `Session.events`, the `llm` service waited for via `inject(['llm'])` instead of a boot-time `ctx.get`, the `settings.mutate` save path (no whole-section `replace`) with a consolidation token floor, the volatile config marking plus the `loader/volatile-update` mirror, the 14-tool list, `agent/turn-stopping`, the `systemPrompt.context` hook, the auto-memory skill, plus two `apply()` smokes through a fake cordis ctx (the 0.1.5 provider with `register()`, and the 0.1.7 service without it whose boxed config is unboxed and re-read on a volatile commit), each asserting a sub-floor `consolidateMaxTokens` is lifted and reported (skipped in a zero-dependency CI).
+- `test/host-wiring.test.js` — guards the harness-facing surface of `lib/index.js`: bare-string settings namespace, the removed `settingsNamespace` helper absent, the Surface layer (`snapshotEvents`) instead of `Session.events`, the `llm` service waited for via `inject(['llm'])` instead of a boot-time `ctx.get`, the `settings.mutate` save path (no whole-section `replace`) with a consolidation token floor, the volatile config marking plus the `loader/volatile-update` mirror, the 14-tool list, `agent/turn-stopping`, the `systemPrompt.context` hook, the auto-memory skill, storage redaction on all three write paths, the bounded retry policy and disposable deferred timers, the injected-bytes/budget/rollout-window observability fields, plus two `apply()` smokes through a fake cordis ctx (the 0.1.5 provider with `register()`, and the 0.1.7 service without it whose boxed config is unboxed and re-read on a volatile commit), each asserting a sub-floor `consolidateMaxTokens` is lifted and reported (skipped in a zero-dependency CI).
 
 The architecture and mechanism notes live in [`docs/DESIGN.md`](docs/DESIGN.md); deployment status in [`docs/STATUS.md`](docs/STATUS.md).
 
