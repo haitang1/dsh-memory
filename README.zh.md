@@ -22,19 +22,35 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话（连同该轮工具活动的有界摘要、以及各子代理最终答复的摘录）蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.5.6** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.5.7** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
-一键路径使用 `scripts/sync-install.ps1`（见下文「部署 / 更新」）；手动路径如下。两种方式之后都需要重启 DeepSeek Harness。
+插件通过 GitHub 发布（release tag 与 commit sha）——**没有 npm 包**，`npm install @dsh-external/dsh-memory` 不是受支持的安装方式。下面两种方式之后都需要重启 DeepSeek Harness。
+
+**推荐：用 DSH CLI 安装。** 它会把依赖写进 profile、用 pnpm 解析，并由 bundle patch 自动挂载插件行（无需手改 `cordis.patch.yml`）：
+
+```bash
+dsh plugin --profile <profile> add 'github:haitang1/dsh-memory#v0.5.7'
+```
+
+可钉 release tag（`#v0.5.7`）或 commit sha；不带后缀则安装默认分支。CLI 把参数转发给 pnpm，因此**升级**就是换新 ref 再执行一次同样的命令，**卸载**是：
+
+```bash
+dsh plugin --profile <profile> remove @dsh-external/dsh-memory
+```
+
+（`<profile>` 是 profile 目录名，如 `desktop` 或 `web`。）`$DSH_HOME/memories` 下的记忆文件不会被安装、升级或卸载改动。
+
+**手动路径**（离线，或要直接跑工作区代码时）：
 
 1. 将包复制到 profile 的外部插件目录：
 
    ```powershell
-   Copy-Item -Recurse ...\dsh-memory "$env:USERPROFILE\.dsh\profiles\web\node_modules\@dsh-external\dsh-memory"
+   Copy-Item -Recurse ...\dsh-memory "$env:USERPROFILE\.dsh\profiles\<profile>\node_modules\@dsh-external\dsh-memory"
    ```
 
-2. 在 `~/.dsh/profiles/web/cordis.patch.yml` 中追加 loader 行（必须是 `insert` 条目——独立的 `- id:` 行只用于覆盖已存在的 bundle 条目，不会挂载新插件）：
+2. 在 `~/.dsh/profiles/<profile>/cordis.patch.yml` 中追加 loader 行——必须是 `insert` 条目；独立的 `- id:` 行只用于覆盖已存在的 bundle 行，不会挂载新插件：
 
    ```yaml
    - insert:
@@ -45,15 +61,9 @@ $DSH_HOME/memories/
            autoSummarize: true
    ```
 
-3. 重启 DeepSeek Harness。插件以 `dsh-memory` 挂载，设置命名空间为 `memory`。
+3. 重启 DeepSeek Harness。插件以 `dsh-memory` 挂载；它的设置表单就是「插件」页该行的配置。
 
-或者，在任何平台（含 Linux/macOS）通过 DSH CLI 从 GitHub 安装——CLI 会自动挂载 bundle，无需手写 `cordis.patch.yml` 行：
-
-```bash
-dsh plugin --profile web add 'github:haitang1/dsh-memory#v0.5.2'
-```
-
-建议钉住 commit（`f3c8de4` 即 `v0.2.7` 发布提交）；省略 `#<sha>` 后缀则安装默认分支。安装后需重启 DeepSeek Harness。
+已存在安装副本时，Windows 上可用 `scripts/sync-install.ps1 -SourceDir <repo> -TargetDir <install> -Backup` 完成第 1 步。
 
 ## 配置
 
@@ -196,7 +206,7 @@ powershell -ExecutionPolicy Bypass -File scripts/sync-install.ps1 -Backup
 
 ## 开发与测试
 
-`npm test` 运行 100 项测试（node:test）：
+`npm test` 运行 101 项测试（node:test）：
 
 - `test/store.test.js` —— 存储语义、journal、历史、归档、作用域，以及 `redactForStorage`（写盘前脱敏，开关可关闭）；
 - `test/automation.test.js` —— auto-memory 技能定义、模型路由回退链（含 DSH 0.1.7 上经 `describe()` 的读取）、`extractMessageText`（user/assistant 事件结构）、有界的工具活动摘要（`formatToolCall`/`formatToolResult`）、子代理与 compaction 摘录格式化、注入预算使用的 token 估算/截断，以及新增可靠性路径背后的纯函数（`budgetState`、`rolloutWindowState`、`nextRetryDelay`、`summaryTargetBytes`、`summaryTargetChars`）；

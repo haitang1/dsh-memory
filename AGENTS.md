@@ -5,7 +5,7 @@
 ## 1. 项目概览
 
 - **定位**：DeepSeek Harness（DSH）的类 Codex 持久记忆插件——全局摘要注入每次提示词、14 个 `memory_*` 工具读写、每轮自动蒸馏、定期合并、版本化回滚；另附独立 stdio MCP server 与 Web 设置表单（插件页行配置）。
-- **当前版本**：0.5.6（MIT，ESM，`engines: node >= 20.3`）。
+- **当前版本**：0.5.7（MIT，ESM，`engines: node >= 20.3`）。
 - **零运行时第三方依赖**：`dependencies` 为空，只有 `peerDependencies`（见红线 3）。仓库无 lockfile、无构建步骤、无 lint/typecheck——保持可读可跑，防漂移靠 `npm run check`。
 
 ## 2. 架构与模块地图
@@ -70,7 +70,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 
 ## 6. 测试体系
 
-- `npm test` = **100 项**（node:test，约 0.9s）：`store`（存储语义/journal/历史/归档/作用域/`redactForStorage`）、`automation`（技能定义/路由回退链/事件文本提取/工具活动摘要/`describe()` 读取/`budgetState`/`rolloutWindowState`/`nextRetryDelay`/`summaryTargetBytes`/`summaryTargetChars`）、`browser`（HTML 快照）、`volatile`（volatile 标记、盒识别与解盒、配置读回）、`web-settings`（端点生命周期 + 最小补丁保存 + 密钥脱敏 + 加载行命名空间 + 表单注册）、`embedding.integration`（fake `/embeddings` + 本地向量）、`mcp.integration`（真实子进程往返）、`host-wiring`（见下）。
+- `npm test` = **101 项**（node:test，约 0.9s）：`store`（存储语义/journal/历史/归档/作用域/`redactForStorage`）、`automation`（技能定义/路由回退链/事件文本提取/工具活动摘要/`describe()` 读取/`budgetState`/`rolloutWindowState`/`nextRetryDelay`/`summaryTargetBytes`/`summaryTargetChars`）、`browser`（HTML 快照）、`volatile`（volatile 标记、盒识别与解盒、配置读回）、`web-settings`（端点生命周期 + 最小补丁保存 + 密钥脱敏 + 加载行命名空间 + 表单注册 + **VM 加载 client bundle 断言 en/zh 字典键对齐与每字段 label/hint 覆盖**）、`embedding.integration`（fake `/embeddings` + 本地向量）、`mcp.integration`（真实子进程往返）、`host-wiring`（见下）。
 - **零依赖原则**：CI（`.github/workflows/ci.yml`，node 20/22，push main + PR）**不 install**，直接 `npm run check && npm test`。任何测试新增对第三方包的硬依赖都会让 CI 崩。
 - `test/host-wiring.test.js`：①源码守卫——注释剥离后无 `settings.register(`、`settings.mutate(` 存在且无 `settings.replace(`、`settingsNamespace` 不存在、`snapshotEvents` 作为兜底存在且 `session.events.entries()` 不存在、`observeSession` + `inject(['sessionQuery'])` 存在且注释剥离后无 `deriveMessages(`、`inject(['llm'])` 存在且无启动时 `const llm = ctx.get('llm')`、`consolidateTokenFloor(` 与 `configAlerts` 存在、volatile 标记与 `loader/volatile-update` 存在、`lib/client.js` 无整段 `value: draft`、14 工具名齐全、`agent/turn-stopping`/`systemPrompt.context`/`AUTO_MEMORY_SKILL` 存在、三条写盘路径经 `redactForStorage`、`nextRetryDelay(` 与 dispose 清理定时器、`memory_stats` 含注入字节/预算水位/rollout 窗口字段、超目标时的 prune pass（`kind: 'prune'`、`summaryTargetBytes` 触发、`summaryTargetChars` 字符预算出现在两个 prompt、输出经 `validateMergedSummary` 复验、`lastConsolidationPrunedAt` 与 `lastPrune` 输出）；②fake-ctx `apply()` 冒烟**一条**——0.1.7+ 形态（无 `register()`，盒装 config 需解盒并在 volatile 提交后重读），均断言 14 工具注册、技能、注入钩子、settings 路由，并执行 `memory_stats` 断言低于底线的 `consolidateMaxTokens` 被提升（3000 → 4096）且 `configAlerts` 非空。**当 harness 包不可解析时必须 `t.skip()` 而非报错**（CI 情形），且**不能改变 `# tests` 计数**（check-release 依赖该计数）。
 - `npm run check`（`scripts/check-release.mjs`）契约：`package.json.version` == CHANGELOG 最新 `## <ver>` == README 两语版本行（`Current release: **X**` / `当前版本：**X**`）；README 声明的测试数（`runs N tests` / `运行 N 项测试`）== 实际 `node --test` 的 `# tests N`。**这些措辞是解析契约，改动措辞必须同步改脚本。**
@@ -84,7 +84,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 5. `git commit`（信息含 release: vX.Y.Z 摘要）→ `git tag -a v<ver> -m <摘要>` → `git push origin main` + 推送标签。
 - 版本号/测试数/工具数任何一处与 README 不一致，`npm run check` 会红——这是特性，不是烦恼。
 - **改 schema 默认值时必须评估 user 层覆盖**：user 层优先级最高，旧版本固化过的旧默认值会继续覆盖新默认，使这次「修复」对已装实例完全无效（0.2.11 的 8192 就是这样被 user 层的 3000 压住的）。改默认值必须配套：运行时底线或迁移、CHANGELOG 写明升级影响与手工清理方式、README 的 Upgrade notes / 升级须知同步。
-- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11 / v0.2.12 / v0.2.13 / v0.2.14 / v0.2.15 / v0.2.16 / v0.3.0 / v0.3.1 / v0.3.2 / v0.4.0 / v0.5.0 / v0.5.1 / v0.5.2 / v0.5.3 / v0.5.4 / v0.5.5 / v0.5.6（更早版本未补标签）。
+- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11 / v0.2.12 / v0.2.13 / v0.2.14 / v0.2.15 / v0.2.16 / v0.3.0 / v0.3.1 / v0.3.2 / v0.4.0 / v0.5.0 / v0.5.1 / v0.5.2 / v0.5.3 / v0.5.4 / v0.5.5 / v0.5.6 / v0.5.7（更早版本未补标签）。
 - **`npm run check` 必须在任意 reporter 下可解析**：Node 25 在 stdout 非 TTY 时默认 `spec`（`ℹ tests N`），脚本已固定 `--test-reporter=tap` 并保留 fallback 解析；改动该脚本时不要退回只认 TAP 的正则。
 
 ## 8. 部署（现状）

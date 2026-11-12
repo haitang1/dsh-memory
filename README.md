@@ -22,19 +22,35 @@ $DSH_HOME/memories/
 - **Auto memory** — on each finished turn of a root agent, the new conversation text (plus a bounded digest of the tools it ran, and of any subagent’s final answer) is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.5.6** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.5.7** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
-The one-command path is `scripts/sync-install.ps1` (see [Deploy / update](#deploy--update)); the manual path is below. Either way, restart DeepSeek Harness afterwards.
+The plugin ships from GitHub (release tags and commit shas) — **there is no npm package**, so `npm install @dsh-external/dsh-memory` is not a supported path. Both paths below need a DeepSeek Harness restart afterwards.
 
-1. Put the package under the profile's external plugins:
+**Recommended: install through the DSH CLI.** It writes the dependency into the profile, resolves it with pnpm, and the bundle patch mounts the row automatically (no `cordis.patch.yml` editing):
+
+```bash
+dsh plugin --profile <profile> add 'github:haitang1/dsh-memory#v0.5.7'
+```
+
+Pin a release tag (`#v0.5.7`) or a commit sha; without a suffix the default branch is installed. The CLI forwards its arguments to pnpm, so **updating** is the same command with a newer ref, and **uninstalling** is:
+
+```bash
+dsh plugin --profile <profile> remove @dsh-external/dsh-memory
+```
+
+(`<profile>` is the profile directory name, e.g. `desktop` or `web`.) Memory files under `$DSH_HOME/memories` are never touched by install, update or removal.
+
+**Manual path** (offline, or when running the working tree):
+
+1. Copy the package into the profile's external plugin directory:
 
    ```powershell
-   Copy-Item -Recurse ...\dsh-memory "$env:USERPROFILE\.dsh\profiles\web\node_modules\@dsh-external\dsh-memory"
+   Copy-Item -Recurse ...\dsh-memory "$env:USERPROFILE\.dsh\profiles\<profile>\node_modules\@dsh-external\dsh-memory"
    ```
 
-2. Add a loader row to `~/.dsh/profiles/web/cordis.patch.yml` (must be an `insert` entry — a standalone `- id:` row only overrides existing bundle entries and will not mount the plugin):
+2. Add a loader row to `~/.dsh/profiles/<profile>/cordis.patch.yml` — it must be an `insert` entry; a standalone `- id:` row only overrides an existing bundle row and will not mount the plugin:
 
    ```yaml
    - insert:
@@ -45,15 +61,9 @@ The one-command path is `scripts/sync-install.ps1` (see [Deploy / update](#deplo
            autoSummarize: true
    ```
 
-3. Restart DeepSeek Harness. The plugin mounts as `dsh-memory`; its settings namespace is `memory`.
+3. Restart DeepSeek Harness. The plugin mounts as `dsh-memory`; its settings form is that row's configuration on the Plugins page.
 
-Alternatively, from GitHub on any platform (Linux/macOS included), install through the DSH CLI — it mounts the bundle automatically, no manual `cordis.patch.yml` row needed:
-
-```bash
-dsh plugin --profile web add 'github:haitang1/dsh-memory#v0.5.2'
-```
-
-Pinning a commit is recommended (`f3c8de4` is the `v0.2.7` release commit); omitting the `#<sha>` suffix installs the default branch. Restart DeepSeek Harness afterwards.
+`scripts/sync-install.ps1 -SourceDir <repo> -TargetDir <install> -Backup` is the Windows shortcut for step 1 when the install already exists.
 
 ## Configuration
 
@@ -213,7 +223,7 @@ Tools accept a `scope` argument (`global` | `workspace` | `project`); the projec
 
 ## Development & testing
 
-`npm test` runs 100 tests (node:test):
+`npm test` runs 101 tests (node:test):
 
 - `test/store.test.js` — store semantics, journal, history, archiving, scopes, and `redactForStorage` (secrets are scrubbed before persisting, and the switch can be turned off);
 - `test/automation.test.js` — the auto-memory skill definition, the model-route fallback chain (including the `describe()`-based read on DSH 0.1.7), `extractMessageText` (user/assistant event shapes), the bounded tool-activity digest (`formatToolCall`/`formatToolResult`), the subagent and compaction excerpt formatters, the token estimator/bounder used by the injection budget, and the pure helpers behind the new reliability paths (`budgetState`, `rolloutWindowState`, `nextRetryDelay`, `summaryTargetBytes`, `summaryTargetChars`);

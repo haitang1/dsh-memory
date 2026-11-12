@@ -540,3 +540,81 @@ test('client bundle registers the DSH 0.1.7 Plugins-page form on the row-config 
   const savedSecret = savedTree.children.flat().find((child) => child.type === SettingsSecretFieldStub)
   assert.equal(savedSecret.props.stateLabel, 't:formSecretSet')
 })
+
+test('client locale dictionaries stay in parity and cover every served form field', () => {
+  // Load the real bundle in a VM and capture what it hands to `locale.register`:
+  // a regex over the source cannot tell whether the en/zh objects agree.
+  const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  const fakeReact = { useState: (initial) => [initial, () => {}], useEffect: () => {}, createElement: () => ({}) }
+  class StubFormModel {
+    bind(project) { return { getSnapshot: () => project(), subscribe: () => () => {} } }
+    shell() { return { available: true, writable: true, dirty: false, invalid: false, saving: false, failed: false } }
+    field() { return { text: '', overridden: false, invalid: false } }
+    actions() { return { edit() {}, resetField() {}, save() {}, discard() {} } }
+    dispose() {}
+  }
+  const primitives = {
+    SettingsFormModel: StubFormModel,
+    settingsNumberField: (field) => ({ field }),
+    settingsTextField: (field) => ({ field }),
+    SettingsForm: (props) => ({ props }),
+    SettingsValueField: (props) => ({ props }),
+    SettingsSecretField: (props) => ({ props })
+  }
+  const requireMock = (spec) => {
+    if (spec === 'react') return fakeReact
+    if (spec === '@deepseek-ai/dsh-client-ui-primitives') return primitives
+    throw new Error(`unexpected require: ${spec}`)
+  }
+  let loaded = null
+  const sandbox = { window: { __ModuleLoader__: { load(spec) { loaded = spec } } } }
+  vm.createContext(sandbox)
+  vm.runInContext(source, sandbox, { filename: 'client.js' })
+  const bundle = loaded.factory(requireMock)
+
+  const registrations = []
+  const fakeCtx = {
+    effect(fn) { fn() },
+    locale: { register(ns, dicts) { registrations.push({ ns, dicts }); return () => {} } },
+    inject(names, callback) {
+      callback({
+        effect: (fn) => fn(),
+        configForms: {
+          get: () => ({}),
+          whileServed: (namespaces, register) => { register(); return () => {} }
+        },
+        slots: { inject: () => () => {}, register: () => ({}) }
+      })
+    }
+  }
+  bundle.apply(fakeCtx)
+  assert.equal(registrations.length, 1, 'the bundle must register exactly one locale dictionary')
+  const { en, zh } = registrations[0].dicts
+
+  // Parity both ways: a key in one language and not the other is a fallback bug.
+  const enKeys = [...Object.keys(en)].sort()
+  const zhKeys = [...Object.keys(zh)].sort()
+  assert.deepEqual(enKeys, zhKeys, 'en and zh must expose the same keys')
+
+  // Every served field needs a label in both languages; numbers/text/secrets also
+  // need their own hint (booleans and lists reuse the shared hints).
+  const fields = [...source.matchAll(/\['(\w+)', '(number|text|secret|bool|list)'\]/g)]
+    .map((match) => ({ field: match[1], kind: match[2] }))
+  assert.ok(fields.length >= 20, 'the form must still offer the live-editable fields')
+  for (const { field, kind } of fields) {
+    for (const [code, dict] of [['en', en], ['zh', zh]]) {
+      assert.equal(typeof dict[`${field}Label`], 'string', `${field}Label missing from ${code}`)
+      assert.ok(dict[`${field}Label`].length > 0, `${field}Label is empty in ${code}`)
+      if (kind !== 'bool' && kind !== 'list') {
+        assert.equal(typeof dict[`${field}Hint`], 'string', `${field}Hint missing from ${code}`)
+      }
+    }
+  }
+  // Shared copy the form frame depends on.
+  for (const key of ['title', 'desc', 'save', 'saving', 'formOverridden', 'formReset', 'formInvalid',
+    'formUnavailable', 'formReadOnly', 'formSaveFailed', 'formBoolHint', 'formListHint',
+    'formSecretSet', 'formSecretPending', 'formSecretUnset']) {
+    assert.equal(typeof en[key], 'string', `en.${key} must exist`)
+    assert.equal(typeof zh[key], 'string', `zh.${key} must exist`)
+  }
+})

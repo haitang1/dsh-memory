@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.7 (2026-11-12)
+
+### Rework the install docs and lock the client form's copy
+
+The README's Install section still pinned the `v0.5.2` tag, pointed at a `v0.2.7`
+commit and claimed the settings namespace was `memory` (it is the loader row id,
+`dsh-memory`). It now documents the GitHub-only distribution (no npm package),
+the `<profile>` placeholder, the CLI install/update/remove commands, and the
+manual `insert` row with the current defaults.
+
+A new test loads the real client bundle in a VM and captures the dictionary it
+passes to `locale.register`, asserting en/zh key parity and that every
+live-editable field has a label (plus its own hint for number/text/secret
+fields) in both languages — a regex over the source could not catch a key that
+exists in only one language.
+
+Tests: 100 → 101.
+
 ## 0.5.6 (2026-11-12)
 
 ### Raise the default summary budget to 24 KB
