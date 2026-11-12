@@ -2,7 +2,8 @@
 
 ## 当前状态（2026-11-11）
 
-- 最新版本：**0.5.5**（main），100 项自动化测试（物化 harness 包后 100 通过 / 0 跳过；零依赖 CI 形态 97 通过 + 3 跳过）。`npm run check` 通过。
+- 最新版本：**0.5.6**（main），100 项自动化测试（物化 harness 包后 100 通过 / 0 跳过；零依赖 CI 形态 97 通过 + 3 跳过）。`npm run check` 通过。
+- 0.5.6（提高默认预算到 24 KB）：0.5.4/0.5.5 两次尝试证明模型不会可靠遵守长度目标——0.5.5 重启后 merge 仍输出 15,837 B（98%）、prune 只缩 173 B、摘要停 97.9%、每次合并 2 次调用。现把默认 `maxBytes` 16,000 → **24,000**（当前约 15.7 KB 摘要 ≈ 66%，注入体积不变），`consolidateMaxTokens` 8192 → **12288** 覆盖 24 KB 摘要的 token 底线、不产生 `configAlerts`；提示词目标与 prune 仍保留为 best-effort/兜底。**user 层保存过 `maxBytes` 的实例仍以 user 层为准**，需在卡片清零或删 `settings.yaml` 的 `memory.maxBytes`。测试数不变（100）。
 - 0.5.5（字符预算加 5% 余量）：0.5.4 的「字节目标 / 3」是无余量 CJK 上界，实测第二次 merge 落在 14,581 B（略超 14,400 目标）→ prune 又触发且只缩 46 B，摘要停 91%、每次合并 2 次 LLM 调用。现 `summaryTargetChars(maxBytes)` = `floor(summaryTargetBytes / 3 × 0.95)`（默认 16 KB 预算 → 4,560 字符 ≈ 13.7 KB 中文），让 merge 一次落在目标内、prune 回到例外兜底；其余逻辑（校验、re-bound、硬截断兜底、`lastPrune` 遥测）不变。测试数不变（100，仅 `summaryTargetChars` 期望值更新）。
 - 0.5.4（按字符控制合并长度）：0.5.3 的 prune pass 消除了硬截断，但字节目标对 LLM 不可数（实测 v60 仍 15,833 B / 99%）。现两个提示词都给出**字符预算**（`summaryTargetChars(maxBytes)` = 字节目标 / 3，按 CJK 最坏情况，下限 512）与当前字符数；不再为 90% 目标二次截断（只保留 `maxBytes` 硬上限兜底，避免切掉尾部事实）；新增 `lastPrune { beforeBytes, afterBytes, targetBytes, targetChars, at }` 遥测，写入 `diagnostics.json` 并由 `memory_stats` 输出，prune 无效时可见。测试 99 → 100（`summaryTargetChars` 纯函数 + 字符预算/lastPrune 源码守卫）。
 - 0.5.3（合并输出强制缩容）：0.5.2 的「提示词要求 ≤ 90% 预算」实测无效——v57/v58/v59 连续三次合并都顶到 16,000 B 被截断（`lastConsolidationTruncatedAt` 每次推进），尾部新事实有被切风险。现改为：合并结果仍超过 `summaryTargetBytes(maxBytes)`（90% 预算，下限 1 KiB）时，追加一次有界 LLM 调用（`kind: 'prune'`）把摘要改写到目标大小，输出经 `validateMergedSummary` + 版本行校验并重新限定预算后才可替换；prune 畸形/失败保留合并结果并记 `recordError('prune')`，硬截断仅作最后兜底。遥测拆分：新增 `lastConsolidationPrunedAt`（发生 prune）；`lastConsolidationTruncatedAt` 改为「最终写盘仍被截断」的真实失败信号；两者均进 `memory_stats` 与 `diagnostics.json`。测试 98 → 99（`summaryTargetBytes` 纯函数 + prune 源码守卫）。

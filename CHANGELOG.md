@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.6 (2026-11-12)
+
+### Raise the default summary budget to 24 KB
+
+0.5.4 and 0.5.5 tried to make the curator respect a size target (characters,
+then a 5% margin). Live checks showed the model does not obey: the 09:25 merge
+on 0.5.5 landed at 15,837 B (98%) and the prune pass shaved only 173 B, so the
+summary stayed at 97.9% and every merge cost two LLM calls.
+
+The default `maxBytes` is now 24,000 (was 16,000), which gives the summary real
+headroom again (the current ~15.7 KB summary is ~66%) without growing today's
+injection; `consolidateMaxTokens` moves from 8192 to 12288 so the token floor for
+a 24 KB summary is covered without `configAlerts`. The prompt-level targets and
+the prune pass stay as best-effort hints and the exact fallback. A `maxBytes`
+saved in the user layer still outranks the new default.
+
+Tests: count unchanged (100); the default constants and docs move.
+
 ## 0.5.5 (2026-11-11)
 
 ### Give the character budget a 5% margin so a merge lands in one pass

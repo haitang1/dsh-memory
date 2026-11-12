@@ -5,7 +5,7 @@
 ## 1. 项目概览
 
 - **定位**：DeepSeek Harness（DSH）的类 Codex 持久记忆插件——全局摘要注入每次提示词、14 个 `memory_*` 工具读写、每轮自动蒸馏、定期合并、版本化回滚；另附独立 stdio MCP server 与 Web 设置表单（插件页行配置）。
-- **当前版本**：0.5.5（MIT，ESM，`engines: node >= 20.3`）。
+- **当前版本**：0.5.6（MIT，ESM，`engines: node >= 20.3`）。
 - **零运行时第三方依赖**：`dependencies` 为空，只有 `peerDependencies`（见红线 3）。仓库无 lockfile、无构建步骤、无 lint/typecheck——保持可读可跑，防漂移靠 `npm run check`。
 
 ## 2. 架构与模块地图
@@ -84,7 +84,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 5. `git commit`（信息含 release: vX.Y.Z 摘要）→ `git tag -a v<ver> -m <摘要>` → `git push origin main` + 推送标签。
 - 版本号/测试数/工具数任何一处与 README 不一致，`npm run check` 会红——这是特性，不是烦恼。
 - **改 schema 默认值时必须评估 user 层覆盖**：user 层优先级最高，旧版本固化过的旧默认值会继续覆盖新默认，使这次「修复」对已装实例完全无效（0.2.11 的 8192 就是这样被 user 层的 3000 压住的）。改默认值必须配套：运行时底线或迁移、CHANGELOG 写明升级影响与手工清理方式、README 的 Upgrade notes / 升级须知同步。
-- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11 / v0.2.12 / v0.2.13 / v0.2.14 / v0.2.15 / v0.2.16 / v0.3.0 / v0.3.1 / v0.3.2 / v0.4.0 / v0.5.0 / v0.5.1 / v0.5.2 / v0.5.3 / v0.5.4 / v0.5.5（更早版本未补标签）。
+- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11 / v0.2.12 / v0.2.13 / v0.2.14 / v0.2.15 / v0.2.16 / v0.3.0 / v0.3.1 / v0.3.2 / v0.4.0 / v0.5.0 / v0.5.1 / v0.5.2 / v0.5.3 / v0.5.4 / v0.5.5 / v0.5.6（更早版本未补标签）。
 - **`npm run check` 必须在任意 reporter 下可解析**：Node 25 在 stdout 非 TTY 时默认 `spec`（`ℹ tests N`），脚本已固定 `--test-reporter=tap` 并保留 fallback 解析；改动该脚本时不要退回只认 TAP 的正则。
 
 ## 8. 部署（现状）
@@ -114,7 +114,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 | **schema 探测用了对象守卫** | `secretField` 用 `typeof field === 'object'` 判断能否调 `.role()`，而 schemastery 的 schema 是**可调用对象**——标记被静默跳过，`describe({redactSecrets:true})` 因此什么都没脱敏，密钥照旧经端点外泄（v0.4.0 上线后实测发现） | 探测改为 `typeof field?.role === 'function'`（与 `volatileField` 一致），并用**真实 schemastery**在测试里断言 `role` 存活到 `toJSON()`、另加 host-wiring 守卫断言 `Config.toJSON()` 里存在 `role === 'secret'`（v0.5.0） |
 | **0.1.5 旧线** | 0.1.5 的提供方侧接缝（`settings.register`）、独立卡片（`settings.plugin.item` + 约 420 行卡片代码与 CSS）与 `settings.get()` 读取路径长期是死代码，且 `secretField`/`volatileField` 的特性探测被误当成「0.1.5 兼容」而保留 | 明确放弃该线：删掉 register 分支、卡片与其字典项、`settings.get()` 分支，命名空间只留 `dsh-memory`，peers 收到 `^0.1.7-rc.1 || ^0.2.0-rc.1`；保留 `Schema#volatile`/`role` 的特性探测（作为 schema 库差异的防御，不再是 0.1.5 兼容）（v0.5.0） |
 | **密钥经设置端点外泄** | `GET /_dsh/memory/settings` 会返回 `embeddingApiKey` 明文——该端点同源且**无需 token**，本机任意进程都能读；根因是 `SettingsForms.describe()` 不带 `redactSecrets` 时按原值返回 | schema 给该字段加 `role('secret')`（`secretField`，无 role 的 0.1.5 线特性探测后原样返回），端点改为 `describe({ redactSecrets: true })` 并把 `secrets` 侧车透出（卡片据此显示「已保存」），显式 `unset` 仍能清除（脱敏后无法判断 user 层归属，故显式清除一律到达 seam）。**注意 v0.4.0 的 `secretField` 探测写错（对象守卫），实际未生效，v0.5.0 才真正脱敏** |
-| **注入预算只有字节** | `maxBytes` 默认 8000 只能表达字节量，而同样字节数的中英文 token 数相差数倍；且字节预算无法表达「这个模型上下文多大」。实测线上摘要 7848 B 已贴近 8000 B 上限 | 默认 `maxBytes` 提到 **16000**，并新增 `injectTokens`（默认 0 = 只按字节）用本地无依赖估算器按 token 再设上限（中文 ≈ 1 token/字符，拉丁 ≈ 1/4）（v0.3.2） |
+| **注入预算只有字节** | `maxBytes` 默认 8000 只能表达字节量，而同样字节数的中英文 token 数相差数倍；且字节预算无法表达「这个模型上下文多大」。实测线上摘要 7848 B 已贴近 8000 B 上限 | 默认 `maxBytes` 提到 **16000**，并新增 `injectTokens`（默认 0 = 只按字节）用本地无依赖估算器按 token 再设上限（中文 ≈ 1 token/字符，拉丁 ≈ 1/4）（v0.3.2；v0.5.6 再提到 **24000**，`consolidateMaxTokens` 同步 8192 → 12288） |
 | **子代理产出不入记忆** | 蒸馏只由 `agent/turn-stopping` 驱动且仅对根会话生效，子代理（研究/探索/验证的产出）此前 100% 被跳过；`subagent/end` 的载荷又没有父会话身份，只有「以委派父代理为 key 的 scope carrier」 | 把 `subagent/end` 监听器注册到**父代理自己的 `agent.ctx`**（`agent/created` + turn-stopping 补挂），用纯函数 `formatSubagentResult` 把最终答复作为 rollout 块追加（≤2000 字符、去重、无额外 LLM 调用），新增 `captureSubagents`（v0.3.0） |
 | **蒸馏只读消息事件** | `extractTurnText` 只读 `user/message` / `assistant/message` 的 text block，而工具调用与结果是**独立事件**（`tool/call` / `tool/result`）——于是「跑了什么命令、哪个测试失败、怎么修的」全部进不了记忆，摘要里只剩寒暄式散文 | 新增 `formatToolCall`/`formatToolResult` 纯函数生成有界单行摘要，`extractTurnText` 以独立预算（≤4000 字符）追加在 `[tool activity]` 标记后，截断正文不影响它（v0.2.16） |
 | **systemPrompt 注入静默丢失** | 插件在宿主进程内被重新 apply 时，`ctx.get('systemPrompt')` 可能为空——注入钩子被静默跳过，工具/设置端点/蒸馏全部正常，只有 `# DSH memory` 从提示词里消失，且无任何错误日志（与 0.1.2-rc.1 的 `ctx.get('llm')` 同型；2026-11-10 适配审计确认该风险模式） | 改为 `ctx.inject(['systemPrompt'], …)`（DSH 0.2.2-rc.1 一方插件 `dsh-user-approval` 即此写法）；`text()` 的 catch 首次失败记 warn；host-wiring 守卫禁止 `ctx.get('systemPrompt')` 并要求 `inject(['systemPrompt'])`（v0.5.1，2026-11-10） |
@@ -123,6 +123,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 | **提示词控不住合并输出体积** | 0.5.2 在合并 prompt 里要求「输出 ≤ 预算 90%」，上线实测 v57/v58/v59 连续三次都顶到 16,000 B 被截断（`lastConsolidationTruncatedAt` 每次推进），尾部新事实有被切风险 | 超 `summaryTargetBytes(maxBytes)` 时追加一次有界 `prune` LLM 调用缩容，输出经 `validateMergedSummary` + 版本行校验并重新限定预算后才替换；新增 `lastConsolidationPrunedAt` 与 `lastConsolidationTruncatedAt` 语义拆分（v0.5.3） |
 | **字节目标对 LLM 不可数** | 0.5.3 的 prune prompt 仍给「≤ N 字节」，实测 v60 prune 后仍 15,833 B（99%），只缩小 36 B——模型数不了字节 | 两个 prompt 改用 `summaryTargetChars(maxBytes)`（字节目标 / 3，CJK 最坏情况，下限 512）并附当前字符数；不再为 90% 目标二次截断（保留 `maxBytes` 硬上限兜底）；新增 `lastPrune` 遥测使 prune 效果可见（v0.5.4） |
 | **字符上界无余量** | 0.5.4 的「字节目标 / 3」只在纯 CJK 时精确；混入英文/标点后 merge 仍超 1~2%（实测 v63：14,581 B vs 14,400 B 目标），prune 每轮都触发且只缩 46 B，摘要贴 91%、每次合并 2 次 LLM 调用 | `summaryTargetChars` 加 5% 余量（`floor(字节目标/3 × 0.95)`，默认预算 → 4,560 字符 ≈ 13.7 KB 中文），让 merge 一次落在目标内、prune 回到例外兜底（v0.5.5） |
+| **模型不遵守体积上限** | 0.5.5 加余量后实测仍未收敛：merge 输出 15,837 B（98%）、prune 只缩 173 B、摘要 97.9%、每次合并 2 次调用（2026-11-12 09:25）——提示词里的字符/字节目标整体不可靠 | 提高默认 `maxBytes` 16,000 → **24,000**、`consolidateMaxTokens` 8192 → 12288（覆盖 24 KB 摘要的 token 底线、零 `configAlerts`）；提示词目标与 prune 保留为 best-effort 与兜底；当前约 15.7 KB 摘要 ≈ 66%，prune 不再每轮触发（v0.5.6） |
 | 常态 | DSH pre-1.0，同一 `^0.1.x` 范围内 API 可破 | 升级前验证；用 host-wiring 守卫兜底 |
 
 **维护提示**：本文件是与代码平行的文档，改版本/工具数/CI/部署方式时同步更新；若与仓库不一致，以 package.json / lib / README / CHANGELOG 为准（并修本文件）。

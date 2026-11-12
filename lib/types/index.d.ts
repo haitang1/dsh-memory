@@ -10,7 +10,7 @@ import type z from '@deepseek-ai/schemastery'
 export interface MemoryConfig {
   /** Memory directory; empty defaults to `$DSH_HOME/memories`. */
   memoryDir?: string
-  /** Byte budget for the injected summary (default 16000). */
+  /** Byte budget for the injected summary (default 24000). */
   maxBytes?: number
   /** Byte budget for the consolidation input sent to the merge model (default 40000). */
   consolidateMaxBytes?: number
@@ -31,7 +31,7 @@ export interface MemoryConfig {
   /** Maximum output tokens for turn summarization (default 1500). */
   summaryMaxTokens?: number
   /**
-   * Maximum output tokens for summary consolidation (default 8192). A value
+   * Maximum output tokens for summary consolidation (default 12288). A value
    * below the budget needed to emit a `maxBytes`-sized summary is lifted at
    * runtime and reported through `memory_stats.configAlerts`, so an override
    * inherited from an older release cannot silently break consolidation.

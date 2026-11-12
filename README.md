@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **Auto memory** — on each finished turn of a root agent, the new conversation text (plus a bounded digest of the tools it ran, and of any subagent’s final answer) is distilled with the default model into a rollout summary. Every `consolidateEvery` summaries, the scope's summary is re-merged (atomic write, version bump). With `scopedMemory`, rollouts and consolidation route to the session's workspace or project scope. All LLM work is queued, timed out, and never blocks a turn.
 - **Seeding** — on first run the plugin seeds the summary from `$DSH_HOME/AGENTS.md` (the Codex-synced global memory) without modifying it.
 
-Current release: **0.5.5** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
+Current release: **0.5.6** — see [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## Install
 
@@ -41,7 +41,7 @@ The one-command path is `scripts/sync-install.ps1` (see [Deploy / update](#deplo
        - id: dsh-memory
          name: '@dsh-external/dsh-memory'
          config:
-           maxBytes: 16000
+           maxBytes: 24000
            autoSummarize: true
    ```
 
@@ -60,7 +60,7 @@ Pinning a commit is recommended (`f3c8de4` is the `v0.2.7` release commit); omit
 | Key | Default | Description |
 | --- | --- | --- |
 | `memoryDir` | `$DSH_HOME/memories` | Memory directory (empty = default). |
-| `maxBytes` | `16000` | Byte budget of the injected summary (and of the summary file itself). |
+| `maxBytes` | `24000` | Byte budget of the injected summary (and of the summary file itself). |
 | `injectTokens` | `0` | Estimated-token cap for the injected summary; `0` leaves the byte budget in charge. CJK text counts about one token per character, Latin about a quarter. |
 | `consolidateMaxBytes` | `40000` | Byte budget of the consolidation input sent to the merge model. |
 | `keepSummaryVersions` | `20` | Previous summary versions retained for `memory_rollback` (0 disables history). |
@@ -70,7 +70,7 @@ Pinning a commit is recommended (`f3c8de4` is the `v0.2.7` release commit); omit
 | `summarizeDebounceMs` | `300000` | Minimum interval between summarizations of the same session (0 disables the debounce). |
 | `consolidateEvery` | `3` | Rollout summaries written before re-consolidating the global summary. |
 | `summaryMaxTokens` | `1500` | Max output tokens for turn summarization. |
-| `consolidateMaxTokens` | `8192` | Max output tokens for summary consolidation. Values below the floor a `maxBytes`-sized summary needs are lifted at runtime and reported in `memory_stats.configAlerts`. |
+| `consolidateMaxTokens` | `12288` | Max output tokens for summary consolidation. Values below the floor a `maxBytes`-sized summary needs are lifted at runtime and reported in `memory_stats.configAlerts`. |
 | `llmRetries` | `1` | Retries after a transient LLM failure. |
 | `maxActiveSummaries` | `4` | Maximum concurrent turn summarizations before new jobs are dropped. |
 | `scopedMemory` | `false` | Enable per-workspace memory scopes. |
@@ -85,7 +85,9 @@ The Web settings form (see below) edits every config field live; keys are likewi
 
 ## Upgrade notes
 
-**0.5.5 gives the character budget a 5% margin.** 0.5.4's exact CJK bound still let a merge land slightly over the byte target (14,581 B vs 14,400 B), so the prune pass ran on every merge. `summaryTargetChars` now targets ~4,560 characters for the default 16 KB budget (≈13.7 KB of CJK), keeping merges under the 90% mark and the prune pass for the exceptions. Validation, the hard cap and the telemetry are unchanged.
+**0.5.6 raises the default `maxBytes` from 16,000 to 24,000.** Two prompt-level attempts (0.5.4 characters, 0.5.5 character margin) showed the model does not reliably obey a length target, so the merge kept hovering at 96–99% of a 16 KB budget and the prune pass ran on every merge. The bigger budget gives the summary real headroom again (the current ~16 KB summary is ~66%) while the prompt targets stay in place as best-effort hints; `consolidateMaxTokens` moves from `8192` to `12288` so the token floor for a 24 KB summary is covered without `configAlerts`. **A `maxBytes` value saved in the user layer still wins** — clear it (in the form, or by deleting the key from `memory:` in `$DSH_HOME/settings.yaml`) to get the new default.
+
+**0.5.5 gives the character budget a 5% margin.** 0.5.4's exact CJK bound still let a merge land slightly over the byte target (14,581 B vs 14,400 B), so the prune pass ran on every merge. `summaryTargetChars` now targets ~4,560 characters for a 16 KB budget (≈13.7 KB of CJK), keeping merges under the 90% mark and the prune pass for the exceptions. Validation, the hard cap and the telemetry are unchanged.
 
 **0.5.4 asks the curator for characters, not bytes.** Models cannot measure bytes, so 0.5.3's byte-targeted prompts still left the summary at 99% of the budget. Both prompts now carry a character budget (`summaryTargetChars`: byte target / 3, the CJK worst case) and the current character count; the hard cap at `maxBytes` remains the only truncation (the 90% target is never enforced by cutting the tail). `memory_stats` and `diagnostics.json` now report `lastPrune { beforeBytes, afterBytes, targetBytes, targetChars }`.
 

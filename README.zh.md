@@ -22,7 +22,7 @@ $DSH_HOME/memories/
 - **自动记忆** —— 根代理每轮结束后，用默认模型把新增对话（连同该轮工具活动的有界摘要、以及各子代理最终答复的摘录）蒸馏成 rollout 摘要；累计 `consolidateEvery` 份后重新合并对应作用域摘要（原子写入、版本号递增）。开启 `scopedMemory` 后，rollout 与合并按会话的工作区或项目作用域路由。所有 LLM 调用带超时，绝不阻塞轮次。
 - **种子导入** —— 首次运行时从 `$DSH_HOME/AGENTS.md`（Codex 同步的全局记忆）导入初始摘要，不修改原文件。
 
-当前版本：**0.5.5** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：**0.5.6** —— 发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -41,7 +41,7 @@ $DSH_HOME/memories/
        - id: dsh-memory
          name: '@dsh-external/dsh-memory'
          config:
-           maxBytes: 16000
+           maxBytes: 24000
            autoSummarize: true
    ```
 
@@ -60,7 +60,7 @@ dsh plugin --profile web add 'github:haitang1/dsh-memory#v0.5.2'
 | 键 | 默认值 | 说明 |
 | --- | --- | --- |
 | `memoryDir` | `$DSH_HOME/memories` | 记忆目录（空 = 默认）。 |
-| `maxBytes` | `16000` | 注入摘要（以及摘要文件本身）的字节上限。 |
+| `maxBytes` | `24000` | 注入摘要（以及摘要文件本身）的字节上限。 |
 | `injectTokens` | `0` | 注入摘要的估算 token 上限；`0` 表示只按字节限制。中文约每字符 1 token，拉丁文约 1/4。 |
 | `consolidateMaxBytes` | `40000` | 合并模型输入的总字节预算。 |
 | `keepSummaryVersions` | `20` | 保留的摘要历史版本数，供 `memory_rollback` 回滚（0 = 不保留）。 |
@@ -70,7 +70,7 @@ dsh plugin --profile web add 'github:haitang1/dsh-memory#v0.5.2'
 | `summarizeDebounceMs` | `300000` | 同一会话两次蒸馏的最小间隔（0 = 关闭防抖）。 |
 | `consolidateEvery` | `3` | 累计多少份 rollout 摘要后重新合并全局摘要。 |
 | `summaryMaxTokens` | `1500` | 单轮摘要 LLM 的最大输出 token。 |
-| `consolidateMaxTokens` | `8192` | 摘要合并 LLM 的最大输出 token。低于 `maxBytes` 规模摘要所需的底线时会在运行时被提升，并在 `memory_stats.configAlerts` 中上报。 |
+| `consolidateMaxTokens` | `12288` | 摘要合并 LLM 的最大输出 token。低于 `maxBytes` 规模摘要所需的底线时会在运行时被提升，并在 `memory_stats.configAlerts` 中上报。 |
 | `llmRetries` | `1` | LLM 瞬时失败后的重试次数。 |
 | `maxActiveSummaries` | `4` | 同时进行的轮次摘要上限，超出后丢弃新任务。 |
 | `scopedMemory` | `false` | 开启按工作区隔离的记忆作用域。 |
@@ -85,7 +85,9 @@ Web 设置页表单（见下文）可在线编辑**全部配置项**；各键亦
 
 ## 升级须知
 
-**0.5.5 给字符预算加 5% 余量。** 0.5.4 的「字节目标 / 3」是无余量的 CJK 上界，混入英文后 merge 仍会略超字节目标（实测 14,581 B vs 14,400 B），导致每次合并都触发 prune。现在 `summaryTargetChars` 对默认 16 KB 预算给出约 4,560 字符（≈13.7 KB 中文），让 merge 稳定落在 90% 以下，prune 只作为例外兜底；校验、硬上限与遥测均不变。
+**0.5.6 把 `maxBytes` 默认值从 16,000 提高到 24,000。** 0.5.4（字符）与 0.5.5（字符 + 5% 余量）两次尝试证明模型不会可靠遵守长度目标：merge 一直停在 16 KB 预算的 96–99%，prune 每轮都跑。更大的预算重新给出真正余量（当前约 16 KB 的摘要约占 66%），提示词里的目标仍作为 best-effort 提示保留；`consolidateMaxTokens` 从 `8192` 提到 `12288`，覆盖 24 KB 摘要所需的 token 底线、不产生 `configAlerts`。**user 层里保存过的 `maxBytes` 仍然优先**——要在卡片里清零/改写，或从 `$DSH_HOME/settings.yaml` 的 `memory:` 段删掉该键。
+
+**0.5.5 给字符预算加 5% 余量。** 0.5.4 的「字节目标 / 3」是无余量的 CJK 上界，混入英文后 merge 仍会略超字节目标（实测 14,581 B vs 14,400 B），导致每次合并都触发 prune。现在 `summaryTargetChars` 对 16 KB 预算给出约 4,560 字符（≈13.7 KB 中文），让 merge 稳定落在 90% 以下，prune 只作为例外兜底；校验、硬上限与遥测均不变。
 
 **0.5.4 让模型按「字符」而不是「字节」控制摘要长度。** 模型数不了字节，0.5.3 的字节目标仍让摘要停在预算 99%。现在两个提示词都给字符预算（`summaryTargetChars`：字节目标 / 3，按中文最坏情况换算）并附当前字符数；硬上限仍是 `maxBytes`，不会为了 90% 目标再截一次尾（避免切掉最新事实）。`memory_stats` 与 `diagnostics.json` 新增 `lastPrune { beforeBytes, afterBytes, targetBytes, targetChars }`，prune 效果可见。
 
