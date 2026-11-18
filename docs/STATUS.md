@@ -1,8 +1,9 @@
 # dsh-memory 状态
 
-## 当前状态（2026-11-11）
+## 当前状态（2026-11-18）
 
-- 最新版本：**0.5.7**（main），101 项自动化测试（物化 harness 包后 101 通过 / 0 跳过；零依赖 CI 形态 98 通过 + 3 跳过）。`npm run check` 通过。
+- 最新版本：**0.5.8**（main），101 项自动化测试（物化 harness 包后 101 通过 / 0 跳过；零依赖 CI 形态 98 通过 + 3 跳过）。`npm run check` 通过。
+- 0.5.8（记忆文本按字面注入，修 `{{…}}` 导致提示词组装报错）：DSH 默认对 `systemPrompt` 上下文文本做 prompt 变量插值——每个 `{{…}}` 必须是名字匹配 `/^[a-z][a-z0-9_]*$/` 且已注册的简单引用，否则整轮提示词组装抛错。线上摘要引用了 `docker ps --format '{{.Names}}'`（raw 记忆里还有 Vue `{{ config.APITitle }}`、Helm 片段），于是报 `malformed prompt variable reference "{{.Names}}" in context "dsh-memory"`。插件表面全正常（14 工具、设置端点、蒸馏都在跑），只有提示词组装失败。记忆是数据不是模板，现给 context 注册加 `interpolate: false`（宿主提供的显式退出口），文本按字面拼接；无 `{{` 的摘要与其它接线不受影响，不认识该字段的旧宿主会忽略而不是报错。测试数不变（101），host-wiring 守卫新增该退出口断言。
 - 0.5.7（安装文档 + 客户端表单文案锁定）：README 安装段重写——插件只从 GitHub 发布（无 npm 包）、`<profile>` 占位、CLI 安装/升级/卸载命令（`dsh plugin ... add/remove`）、手写 `insert` 行与当前默认值；并修正「设置命名空间为 memory」的过时说法（实际是加载行 id `dsh-memory`）。新增 1 项测试：在 VM 里加载真实 `lib/client.js`、捕获交给 `locale.register` 的字典，断言 en/zh 键完全对齐、每个 live-editable 字段在两种语言里都有 label（number/text/secret 另有独立 hint）。测试 100 → 101。
 - 0.5.6（提高默认预算到 24 KB）：0.5.4/0.5.5 两次尝试证明模型不会可靠遵守长度目标——0.5.5 重启后 merge 仍输出 15,837 B（98%）、prune 只缩 173 B、摘要停 97.9%、每次合并 2 次调用。现把默认 `maxBytes` 16,000 → **24,000**（当前约 15.7 KB 摘要 ≈ 66%，注入体积不变），`consolidateMaxTokens` 8192 → **12288** 覆盖 24 KB 摘要的 token 底线、不产生 `configAlerts`；提示词目标与 prune 仍保留为 best-effort/兜底。**user 层保存过 `maxBytes` 的实例仍以 user 层为准**，需在卡片清零或删 `settings.yaml` 的 `memory.maxBytes`。测试数不变（100）。
 - 0.5.5（字符预算加 5% 余量）：0.5.4 的「字节目标 / 3」是无余量 CJK 上界，实测第二次 merge 落在 14,581 B（略超 14,400 目标）→ prune 又触发且只缩 46 B，摘要停 91%、每次合并 2 次 LLM 调用。现 `summaryTargetChars(maxBytes)` = `floor(summaryTargetBytes / 3 × 0.95)`（默认 16 KB 预算 → 4,560 字符 ≈ 13.7 KB 中文），让 merge 一次落在目标内、prune 回到例外兜底；其余逻辑（校验、re-bound、硬截断兜底、`lastPrune` 遥测）不变。测试数不变（100，仅 `summaryTargetChars` 期望值更新）。

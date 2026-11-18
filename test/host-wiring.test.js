@@ -36,6 +36,14 @@ test('host wiring: exposes the full tool surface, the turn hook, and the skill',
   }
   assert.match(source, /agent\/turn-stopping/, 'must subscribe to agent/turn-stopping for auto-summarization')
   assert.match(source, /systemPrompt\.context\(/, 'must install a systemPrompt.context injection')
+  // The host interpolates context text by default: every `{{...}}` must be a
+  // complete simple reference whose name matches /^[a-z][a-z0-9_]*$/ and is
+  // registered as a prompt variable. Memory text is user data, so a summary that
+  // quotes template syntax (`docker ps --format '{{.Names}}'`, Vue `{{ config.x }}`,
+  // Helm) would otherwise throw `malformed prompt variable reference` and abort
+  // prompt assembly for the whole turn. The contribution must opt out.
+  assert.match(source, /systemPrompt\.context\(\{[\s\S]{0,900}?interpolate:\s*false/,
+    'the dsh-memory context must set interpolate: false (memory text is literal data, not a prompt template)')
   // The systemPrompt service can be registered after this bundle boots (a plugin
   // re-applied into a running host). Capturing it with a boot-time ctx.get would
   // drop the injection silently, so only the injected service counts.

@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.5.8 (2026-11-18)
+
+### Inject memory text literally so `{{…}}` in the summary cannot break prompts
+
+The `systemPrompt.context` contribution was registered without opting out of the
+host's prompt-variable interpolation. DSH interpolates context text by default:
+every `{{…}}` must be a complete simple reference whose name matches
+`/^[a-z][a-z0-9_]*$/` and is registered as a prompt variable, otherwise the
+assembly throws. A live summary that quoted docker's `--format '{{.Names}}'`
+(raw memory also carries Vue `{{ config.APITitle }}` and Helm snippets) hit
+exactly that:
+
+```
+malformed prompt variable reference "{{.Names}}" in context "dsh-memory"
+```
+
+The plugin looked healthy — 14 tools, settings endpoint, distillation — while
+every prompt build failed, so the failure surfaced as a host error rather than as
+a memory problem.
+
+Memory text is data, not a template, so the contribution now sets
+`interpolate: false` (the host's documented opt-out) and the summary is spliced
+in verbatim. Summaries without `{{` and all other wiring are unaffected; hosts
+that predate the option ignore the unknown field instead of failing.
+
+Tests: count unchanged (101); the host-wiring guard now asserts the opt-out so a
+later edit cannot silently drop it.
+
 ## 0.5.7 (2026-11-12)
 
 ### Rework the install docs and lock the client form's copy

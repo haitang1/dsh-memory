@@ -5,7 +5,7 @@
 ## 1. 项目概览
 
 - **定位**：DeepSeek Harness（DSH）的类 Codex 持久记忆插件——全局摘要注入每次提示词、14 个 `memory_*` 工具读写、每轮自动蒸馏、定期合并、版本化回滚；另附独立 stdio MCP server 与 Web 设置表单（插件页行配置）。
-- **当前版本**：0.5.7（MIT，ESM，`engines: node >= 20.3`）。
+- **当前版本**：0.5.8（MIT，ESM，`engines: node >= 20.3`）。
 - **零运行时第三方依赖**：`dependencies` 为空，只有 `peerDependencies`（见红线 3）。仓库无 lockfile、无构建步骤、无 lint/typecheck——保持可读可跑，防漂移靠 `npm run check`。
 
 ## 2. 架构与模块地图
@@ -36,6 +36,7 @@
 7. **设置保存只能走最小补丁：`settings.mutate` + `set`/`unset`，禁止整段 `settings.replace`**。配置解析顺序是 schema 默认 → 组合 `base` → **user 层（优先级最高）**，整段写入会把「保存当时的默认值」固化成用户覆盖，此后升级改默认值一律不生效。`lib/web.js` 对**任何**载荷（含旧卡片的整段 `value`）都归一化为最小补丁，`lib/client.js` 只提交改动字段；改这条协议时必须保留 host 端归一化（标签页里缓存的旧 client 会继续整段提交）。
 8. **合并/摘要的输出 token 预算不得低于安全底线**（`consolidateTokenFloor(maxBytes)`，见 `lib/index.js`）。低于底线时提升而非照做，并通过 `memory_stats.configAlerts` + 日志 + `diagnostics.json` 上报——否则每次合并都报 `LLM output reached max tokens`，而插件表面上完全正常（0.2.11→0.2.12 的教训）。
 9. **设置接缝只按 0.1.7+/0.2.x 的 `SettingsForms` 模型写**（0.1.5 已放弃）：插件命名空间是**加载行 id**（本包 `cordis.patch.yml` 的 `dsh-memory`，`MEMORY_SETTINGS_NAMESPACES` 只列它），只为 `meta.volatile` 字段生成表单，保存时**直接改写运行中的 config**。因此三条不能破：`Config` 字段须经 `volatileField()` 标记（结构性字段 `memoryDir`/`seedFromAgentsMd` 除外，它们需要重新 apply）、配置读取一律先 `plainConfig` 解盒、监听 `loader/volatile-update` 把提交镜像回 `resolved`。**schema 字段探测必须用 `typeof field?.method === 'function'`**——schemastery 的 schema 是**可调用对象**（`typeof === 'function'`），加 `typeof === 'object'` 的守卫会静默跳过标记（v0.4.0 的 `secretField` 就是这样让密钥继续外泄的）。
+10. **注入文本必须 `interpolate: false`**：DSH 默认对 `systemPrompt` 的上下文文本做 `{{name}}` 插值——每个 `{{…}}` 必须是名字匹配 `/^[a-z][a-z0-9_]*$/` 且已注册的简单引用，否则抛 `malformed prompt variable reference` 并**中断整轮提示词组装**。记忆里出现任何模板语法（docker `--format '{{.Names}}'`、Vue `{{ config.x }}`、Helm）都会触发；记忆是数据不是模板，`systemPrompt.context` 注册必须显式 `interpolate: false`（v0.5.8），host-wiring 守卫会拦下删除。
 
 ## 4. 存储格式与一致性
 
@@ -72,7 +73,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 
 - `npm test` = **101 项**（node:test，约 0.9s）：`store`（存储语义/journal/历史/归档/作用域/`redactForStorage`）、`automation`（技能定义/路由回退链/事件文本提取/工具活动摘要/`describe()` 读取/`budgetState`/`rolloutWindowState`/`nextRetryDelay`/`summaryTargetBytes`/`summaryTargetChars`）、`browser`（HTML 快照）、`volatile`（volatile 标记、盒识别与解盒、配置读回）、`web-settings`（端点生命周期 + 最小补丁保存 + 密钥脱敏 + 加载行命名空间 + 表单注册 + **VM 加载 client bundle 断言 en/zh 字典键对齐与每字段 label/hint 覆盖**）、`embedding.integration`（fake `/embeddings` + 本地向量）、`mcp.integration`（真实子进程往返）、`host-wiring`（见下）。
 - **零依赖原则**：CI（`.github/workflows/ci.yml`，node 20/22，push main + PR）**不 install**，直接 `npm run check && npm test`。任何测试新增对第三方包的硬依赖都会让 CI 崩。
-- `test/host-wiring.test.js`：①源码守卫——注释剥离后无 `settings.register(`、`settings.mutate(` 存在且无 `settings.replace(`、`settingsNamespace` 不存在、`snapshotEvents` 作为兜底存在且 `session.events.entries()` 不存在、`observeSession` + `inject(['sessionQuery'])` 存在且注释剥离后无 `deriveMessages(`、`inject(['llm'])` 存在且无启动时 `const llm = ctx.get('llm')`、`consolidateTokenFloor(` 与 `configAlerts` 存在、volatile 标记与 `loader/volatile-update` 存在、`lib/client.js` 无整段 `value: draft`、14 工具名齐全、`agent/turn-stopping`/`systemPrompt.context`/`AUTO_MEMORY_SKILL` 存在、三条写盘路径经 `redactForStorage`、`nextRetryDelay(` 与 dispose 清理定时器、`memory_stats` 含注入字节/预算水位/rollout 窗口字段、超目标时的 prune pass（`kind: 'prune'`、`summaryTargetBytes` 触发、`summaryTargetChars` 字符预算出现在两个 prompt、输出经 `validateMergedSummary` 复验、`lastConsolidationPrunedAt` 与 `lastPrune` 输出）；②fake-ctx `apply()` 冒烟**一条**——0.1.7+ 形态（无 `register()`，盒装 config 需解盒并在 volatile 提交后重读），均断言 14 工具注册、技能、注入钩子、settings 路由，并执行 `memory_stats` 断言低于底线的 `consolidateMaxTokens` 被提升（3000 → 4096）且 `configAlerts` 非空。**当 harness 包不可解析时必须 `t.skip()` 而非报错**（CI 情形），且**不能改变 `# tests` 计数**（check-release 依赖该计数）。
+- `test/host-wiring.test.js`：①源码守卫——注释剥离后无 `settings.register(`、`settings.mutate(` 存在且无 `settings.replace(`、`settingsNamespace` 不存在、`snapshotEvents` 作为兜底存在且 `session.events.entries()` 不存在、`observeSession` + `inject(['sessionQuery'])` 存在且注释剥离后无 `deriveMessages(`、`inject(['llm'])` 存在且无启动时 `const llm = ctx.get('llm')`、`consolidateTokenFloor(` 与 `configAlerts` 存在、volatile 标记与 `loader/volatile-update` 存在、`lib/client.js` 无整段 `value: draft`、14 工具名齐全、`agent/turn-stopping`/`systemPrompt.context`/`AUTO_MEMORY_SKILL` 存在、`systemPrompt.context` 注册带 `interpolate: false`、三条写盘路径经 `redactForStorage`、`nextRetryDelay(` 与 dispose 清理定时器、`memory_stats` 含注入字节/预算水位/rollout 窗口字段、超目标时的 prune pass（`kind: 'prune'`、`summaryTargetBytes` 触发、`summaryTargetChars` 字符预算出现在两个 prompt、输出经 `validateMergedSummary` 复验、`lastConsolidationPrunedAt` 与 `lastPrune` 输出）；②fake-ctx `apply()` 冒烟**一条**——0.1.7+ 形态（无 `register()`，盒装 config 需解盒并在 volatile 提交后重读），均断言 14 工具注册、技能、注入钩子、settings 路由，并执行 `memory_stats` 断言低于底线的 `consolidateMaxTokens` 被提升（3000 → 4096）且 `configAlerts` 非空。**当 harness 包不可解析时必须 `t.skip()` 而非报错**（CI 情形），且**不能改变 `# tests` 计数**（check-release 依赖该计数）。
 - `npm run check`（`scripts/check-release.mjs`）契约：`package.json.version` == CHANGELOG 最新 `## <ver>` == README 两语版本行（`Current release: **X**` / `当前版本：**X**`）；README 声明的测试数（`runs N tests` / `运行 N 项测试`）== 实际 `node --test` 的 `# tests N`。**这些措辞是解析契约，改动措辞必须同步改脚本。**
 
 ## 7. 发布流程（0.2.8 起的标准动作）
@@ -84,7 +85,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 5. `git commit`（信息含 release: vX.Y.Z 摘要）→ `git tag -a v<ver> -m <摘要>` → `git push origin main` + 推送标签。
 - 版本号/测试数/工具数任何一处与 README 不一致，`npm run check` 会红——这是特性，不是烦恼。
 - **改 schema 默认值时必须评估 user 层覆盖**：user 层优先级最高，旧版本固化过的旧默认值会继续覆盖新默认，使这次「修复」对已装实例完全无效（0.2.11 的 8192 就是这样被 user 层的 3000 压住的）。改默认值必须配套：运行时底线或迁移、CHANGELOG 写明升级影响与手工清理方式、README 的 Upgrade notes / 升级须知同步。
-- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11 / v0.2.12 / v0.2.13 / v0.2.14 / v0.2.15 / v0.2.16 / v0.3.0 / v0.3.1 / v0.3.2 / v0.4.0 / v0.5.0 / v0.5.1 / v0.5.2 / v0.5.3 / v0.5.4 / v0.5.5 / v0.5.6 / v0.5.7（更早版本未补标签）。
+- 历史版本标签：v0.2.5 / v0.2.6 / v0.2.7 / v0.2.8 / v0.2.9 / v0.2.10 / v0.2.11 / v0.2.12 / v0.2.13 / v0.2.14 / v0.2.15 / v0.2.16 / v0.3.0 / v0.3.1 / v0.3.2 / v0.4.0 / v0.5.0 / v0.5.1 / v0.5.2 / v0.5.3 / v0.5.4 / v0.5.5 / v0.5.6 / v0.5.7 / v0.5.8（更早版本未补标签）。
 - **`npm run check` 必须在任意 reporter 下可解析**：Node 25 在 stdout 非 TTY 时默认 `spec`（`ℹ tests N`），脚本已固定 `--test-reporter=tap` 并保留 fallback 解析；改动该脚本时不要退回只认 TAP 的正则。
 
 ## 8. 部署（现状）
@@ -124,6 +125,7 @@ diagnostics.json          启动诊断（工具注册、技能注册、错误）
 | **字节目标对 LLM 不可数** | 0.5.3 的 prune prompt 仍给「≤ N 字节」，实测 v60 prune 后仍 15,833 B（99%），只缩小 36 B——模型数不了字节 | 两个 prompt 改用 `summaryTargetChars(maxBytes)`（字节目标 / 3，CJK 最坏情况，下限 512）并附当前字符数；不再为 90% 目标二次截断（保留 `maxBytes` 硬上限兜底）；新增 `lastPrune` 遥测使 prune 效果可见（v0.5.4） |
 | **字符上界无余量** | 0.5.4 的「字节目标 / 3」只在纯 CJK 时精确；混入英文/标点后 merge 仍超 1~2%（实测 v63：14,581 B vs 14,400 B 目标），prune 每轮都触发且只缩 46 B，摘要贴 91%、每次合并 2 次 LLM 调用 | `summaryTargetChars` 加 5% 余量（`floor(字节目标/3 × 0.95)`，默认预算 → 4,560 字符 ≈ 13.7 KB 中文），让 merge 一次落在目标内、prune 回到例外兜底（v0.5.5） |
 | **模型不遵守体积上限** | 0.5.5 加余量后实测仍未收敛：merge 输出 15,837 B（98%）、prune 只缩 173 B、摘要 97.9%、每次合并 2 次调用（2026-11-12 09:25）——提示词里的字符/字节目标整体不可靠 | 提高默认 `maxBytes` 16,000 → **24,000**、`consolidateMaxTokens` 8192 → 12288（覆盖 24 KB 摘要的 token 底线、零 `configAlerts`）；提示词目标与 prune 保留为 best-effort 与兜底；当前约 15.7 KB 摘要 ≈ 66%，prune 不再每轮触发（v0.5.6） |
+| **记忆文本被当成提示词模板** | `systemPrompt.context` 没有退出宿主的 `{{…}}` 插值：线上摘要引用了 `docker ps --format '{{.Names}}'`（raw 里还有 Vue `{{ config.APITitle }}`、Helm 片段），于是每次提示词组装抛 `malformed prompt variable reference "{{.Names}}" in context "dsh-memory"`。插件表面全正常（14 工具、设置端点、蒸馏都在跑），故障表现为宿主报错而不是记忆问题，很容易误判成宿主 bug（2026-11-18） | context 注册加 `interpolate: false`（宿主提供的显式退出口，记忆文本按字面拼接；不认识该字段的旧宿主会忽略而非报错）；host-wiring 守卫断言该退出口（v0.5.8） |
 | 常态 | DSH pre-1.0，同一 `^0.1.x` 范围内 API 可破 | 升级前验证；用 host-wiring 守卫兜底 |
 
 **维护提示**：本文件是与代码平行的文档，改版本/工具数/CI/部署方式时同步更新；若与仓库不一致，以 package.json / lib / README / CHANGELOG 为准（并修本文件）。
